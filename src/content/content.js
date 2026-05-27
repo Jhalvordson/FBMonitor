@@ -89,6 +89,11 @@
     if (articleEl.hasAttribute(FBM_SELECTORS.PROCESSED_ATTR)) return;
     articleEl.setAttribute(FBM_SELECTORS.PROCESSED_ATTR, "true");
 
+    // Skip nested articles (comments) — only process top-level posts
+    if (articleEl.parentElement && articleEl.parentElement.closest('div[role="article"]')) {
+      return;
+    }
+
     var keywords;
     try {
       keywords = await FBM_Storage.getKeywords();
@@ -97,22 +102,20 @@
       return;
     }
 
-    console.log("[FBMonitor] Keywords from storage:", JSON.stringify(keywords));
     if (!keywords.length) return;
 
     var highlightEnabled = await FBM_Storage.getHighlightEnabled();
     var text = extractPostText(articleEl);
     console.log(
-      "[FBMonitor] Extracted text (" + text.length + " chars):",
+      "[FBMonitor] Post text (" + text.length + " chars):",
       text.substring(0, 120),
     );
     if (!text.trim()) return;
 
     var matched = matchKeywords(text, keywords);
-    console.log("[FBMonitor] Match result:", JSON.stringify(matched));
     if (matched.length === 0) return;
 
-    console.log("[FBMonitor] MATCH FOUND:", matched, "in:", text.substring(0, 80));
+    console.log("[FBMonitor] MATCH:", matched.join(", "));
 
     if (highlightEnabled) {
       highlightPost(articleEl, matched);
@@ -131,22 +134,10 @@
   }
 
   function extractPostText(articleEl) {
-    // Strategy 1: specific selectors
-    for (var i = 0; i < FBM_SELECTORS.POST_TEXT_CANDIDATES.length; i++) {
-      var selector = FBM_SELECTORS.POST_TEXT_CANDIDATES[i];
-      var candidates = articleEl.querySelectorAll(selector);
-      if (candidates.length > 0) {
-        var texts = [];
-        candidates.forEach(function (el) {
-          var t = el.innerText || el.textContent || "";
-          if (t.trim()) texts.push(t);
-        });
-        var combined = texts.join(" ");
-        if (combined.trim().length > 10) return combined;
-      }
-    }
-
-    // Strategy 2: grab all text from the article
+    // Grab all visible text from the post article.
+    // innerText respects CSS visibility and gives us the rendered text.
+    // This includes post body, author name, timestamps, and comments —
+    // that's fine, we want to catch keywords anywhere in the discussion.
     return articleEl.innerText || articleEl.textContent || "";
   }
 
