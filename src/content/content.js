@@ -93,19 +93,29 @@
     try {
       keywords = await FBM_Storage.getKeywords();
     } catch (e) {
+      console.error("[FBMonitor] getKeywords error:", e.message);
       return;
     }
 
-    if (!keywords.length) return;
+    console.log("[FBMonitor] keywords:", JSON.stringify(keywords));
+    if (!keywords.length) {
+      console.log("[FBMonitor] No keywords configured, skipping");
+      return;
+    }
 
     var highlightEnabled = await FBM_Storage.getHighlightEnabled();
     var text = extractPostText(articleEl);
-    if (!text.trim() || text.length < 5) return;
+    console.log("[FBMonitor] text (" + text.length + "):", JSON.stringify(text.substring(0, 200)));
+    if (!text.trim() || text.length < 5) {
+      console.log("[FBMonitor] Text too short, skipping");
+      return;
+    }
 
     var matched = matchKeywords(text, keywords);
+    console.log("[FBMonitor] matched:", JSON.stringify(matched));
     if (matched.length === 0) return;
 
-    console.log("[FBMonitor] MATCH:", matched.join(", "), "in:", text.substring(0, 80));
+    console.log("[FBMonitor] >>> MATCH:", matched.join(", "));
 
     if (highlightEnabled) {
       highlightPost(articleEl, matched);
