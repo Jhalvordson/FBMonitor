@@ -193,8 +193,7 @@
   function buildMatchData(feedItem, text, matchedKeywords) {
     var postUrl = findPostUrl(feedItem);
     var authorName = findAuthorName(feedItem);
-    var h1 = document.querySelector("h1");
-    var groupName = h1 ? h1.textContent : "Unknown Group";
+    var groupName = findGroupName();
 
     return {
       postText: text.substring(0, FBM_DEFAULTS.MAX_POST_TEXT_LENGTH),
@@ -204,6 +203,45 @@
       groupName: groupName,
       timestamp: Date.now(),
     };
+  }
+
+  function findGroupName() {
+    // Strategy 1: Open Graph meta tag (most reliable)
+    var ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle && ogTitle.content) return ogTitle.content;
+
+    // Strategy 2: The group name link in the header area
+    // Facebook group pages have the name as a linked h1 near the top
+    var groupHeader = document.querySelector(
+      'div[role="main"] h1, div[role="main"] h2',
+    );
+    if (groupHeader && groupHeader.textContent.trim()) {
+      return groupHeader.textContent.trim();
+    }
+
+    // Strategy 3: Extract from URL pattern /groups/NAME/
+    var urlMatch = location.pathname.match(/\/groups\/([^/]+)/);
+    if (urlMatch) {
+      var slug = decodeURIComponent(urlMatch[1]);
+      if (!/^\d+$/.test(slug)) return slug.replace(/[.-]/g, " ");
+    }
+
+    // Strategy 4: Any h1 that's NOT "Notifications" or other Facebook UI
+    var h1s = document.querySelectorAll("h1");
+    for (var i = 0; i < h1s.length; i++) {
+      var text = h1s[i].textContent.trim();
+      if (
+        text &&
+        text !== "Notifications" &&
+        text !== "Facebook" &&
+        text.length > 1 &&
+        text.length < 100
+      ) {
+        return text;
+      }
+    }
+
+    return "Unknown Group";
   }
 
   function findPostUrl(feedItem) {
@@ -242,18 +280,46 @@
   }
 
   function findAuthorName(feedItem) {
-    // Try multiple strategies to find the post author
-    var strong = feedItem.querySelector("h3 strong, h4 strong, strong a");
-    if (strong && strong.textContent.trim()) {
-      return strong.textContent.trim();
-    }
-    var strongEls = feedItem.querySelectorAll("strong");
-    for (var i = 0; i < strongEls.length; i++) {
-      var name = strongEls[i].textContent.trim();
-      if (name && name.length > 1 && name.length < 50) {
+    // Facebook author names are typically in <strong> or <a> tags with
+    // specific patterns near the top of each post.
+    // Look for links that point to user profiles (contain facebook.com/USER or /user/)
+    var profileLinks = feedItem.querySelectorAll(
+      'a[href*="facebook.com/"], a[role="link"]',
+    );
+    for (var i = 0; i < profileLinks.length; i++) {
+      var link = profileLinks[i];
+      var href = link.href || "";
+      // Skip non-profile links (groups, posts, photos, hashtags, etc.)
+      if (
+        href.includes("/groups/") ||
+        href.includes("/posts/") ||
+        href.includes("/photo") ||
+        href.includes("/permalink") ||
+        href.includes("story_fbid") ||
+        href.includes("#")
+      )
+        continue;
+
+      var strong = link.querySelector("strong");
+      if (strong) {
+        var name = strong.textContent.trim();
+        if (name.length > 1 && name.length < 60) return name;
+      }
+      var name = link.textContent.trim();
+      if (name.length > 1 && name.length < 60 && !name.includes("\n")) {
         return name;
       }
     }
+
+    // Fallback: first <strong> that looks like a name
+    var strongs = feedItem.querySelectorAll("strong");
+    for (var j = 0; j < strongs.length; j++) {
+      var text = strongs[j].textContent.trim();
+      if (text.length > 1 && text.length < 50 && !text.includes("\n")) {
+        return text;
+      }
+    }
+
     return "Unknown";
   }
 
