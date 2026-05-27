@@ -206,6 +206,19 @@
         }
       }
     }
+    // If still no permalink, construct a group search URL so the user
+    // can find the post instead of landing at the top of the group
+    if (postUrl === window.location.href) {
+      var groupMatch = location.pathname.match(/\/groups\/([^/]+)/);
+      if (groupMatch) {
+        var searchWords = text.trim().split(/\s+/).slice(0, 6).join(" ");
+        postUrl =
+          "https://www.facebook.com/groups/" +
+          groupMatch[1] +
+          "/search/?q=" +
+          encodeURIComponent(searchWords);
+      }
+    }
     var authorName = findAuthorName(feedItem);
     var groupName = findGroupName();
 
