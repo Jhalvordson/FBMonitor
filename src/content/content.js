@@ -1,148 +1,138 @@
 // FBMonitor content script — injected on facebook.com/groups/* pages.
-// Watches the feed for new posts, scans for keyword matches,
-// highlights matching posts, and notifies the service worker.
+// Scans for keyword matches in post text, highlights matches, and
+// notifies the service worker for webhook dispatch.
 
 (function () {
   console.log("[FBMonitor] Content script loaded on", location.href);
 
-  var feedObserver = null;
   var currentFeed = null;
+  var feedObserver = null;
   var scanTimeout = null;
-  var SCAN_DEBOUNCE_MS = 150;
+  var SCAN_DEBOUNCE_MS = 200;
   var FEED_CHECK_INTERVAL_MS = 5000;
   var PERIODIC_SCAN_MS = 3000;
 
   async function init() {
     console.log("[FBMonitor] Waiting for feed container...");
-    var feed = await waitForFeed();
+    var feed = await waitForElement('div[role="feed"]', 30000);
     if (!feed) {
-      console.warn("[FBMonitor] Feed container not found within timeout.");
+      console.warn("[FBMonitor] No feed found, trying full page scan...");
+      startPeriodicPageScan();
       return;
     }
     console.log("[FBMonitor] Feed found, starting observer.");
+    currentFeed = feed;
     observeFeed(feed);
-    scanExistingPosts(feed);
+    scanFeed(feed);
     startNavigationWatcher();
     startPeriodicScan();
   }
 
-  function waitForFeed() {
+  function waitForElement(selector, timeoutMs) {
     return new Promise(function (resolve) {
-      var feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
-      if (feed) return resolve(feed);
+      var el = document.querySelector(selector);
+      if (el) return resolve(el);
 
-      var timeout = setTimeout(function () {
-        bodyObs.disconnect();
+      var timer = setTimeout(function () {
+        obs.disconnect();
         resolve(null);
-      }, 30000);
+      }, timeoutMs);
 
-      var bodyObs = new MutationObserver(function () {
-        var feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
-        if (feed) {
-          clearTimeout(timeout);
-          bodyObs.disconnect();
-          resolve(feed);
+      var obs = new MutationObserver(function () {
+        var el = document.querySelector(selector);
+        if (el) {
+          clearTimeout(timer);
+          obs.disconnect();
+          resolve(el);
         }
       });
-      bodyObs.observe(document.body, { childList: true, subtree: true });
+      obs.observe(document.body, { childList: true, subtree: true });
     });
   }
 
   function observeFeed(feed) {
     if (feedObserver) feedObserver.disconnect();
-    currentFeed = feed;
 
     feedObserver = new MutationObserver(function () {
       if (scanTimeout) clearTimeout(scanTimeout);
       scanTimeout = setTimeout(function () {
-        scanNewPosts(feed);
+        scanFeed(feed);
       }, SCAN_DEBOUNCE_MS);
     });
 
     feedObserver.observe(feed, { childList: true, subtree: true });
   }
 
-  function scanExistingPosts(feed) {
-    var articles = feed.querySelectorAll(FBM_SELECTORS.POST_ARTICLE);
-    console.log("[FBMonitor] Scanning", articles.length, "existing posts");
-    articles.forEach(function (article) {
-      scanPost(article);
-    });
-  }
-
-  function scanNewPosts(feed) {
-    var articles = feed.querySelectorAll(
-      FBM_SELECTORS.POST_ARTICLE +
-        ":not([" +
-        FBM_SELECTORS.PROCESSED_ATTR +
-        "])",
-    );
-    if (articles.length > 0) {
-      console.log("[FBMonitor] Scanning", articles.length, "new posts");
-    }
-    articles.forEach(function (article) {
-      scanPost(article);
-    });
-  }
-
-  async function scanPost(articleEl) {
-    if (articleEl.hasAttribute(FBM_SELECTORS.PROCESSED_ATTR)) return;
-    articleEl.setAttribute(FBM_SELECTORS.PROCESSED_ATTR, "true");
-
+  // Main scanning strategy: find all text blocks with dir="auto" in the feed,
+  // check each for keyword matches, then highlight the containing feed item.
+  // This works regardless of whether posts use role="article" or not.
+  async function scanFeed(container) {
     var keywords;
     try {
       keywords = await FBM_Storage.getKeywords();
     } catch (e) {
-      console.error("[FBMonitor] getKeywords error:", e.message);
       return;
     }
-
-    console.log("[FBMonitor] keywords:", JSON.stringify(keywords));
-    if (!keywords.length) {
-      console.log("[FBMonitor] No keywords configured, skipping");
-      return;
-    }
+    if (!keywords.length) return;
 
     var highlightEnabled = await FBM_Storage.getHighlightEnabled();
-    var text = extractPostText(articleEl);
-    console.log("[FBMonitor] text (" + text.length + "):", JSON.stringify(text.substring(0, 200)));
-    if (!text.trim() || text.length < 5) {
-      console.log("[FBMonitor] Text too short, skipping");
-      return;
-    }
-
-    var matched = matchKeywords(text, keywords);
-    console.log("[FBMonitor] matched:", JSON.stringify(matched));
-    if (matched.length === 0) return;
-
-    console.log("[FBMonitor] >>> MATCH:", matched.join(", "));
-
-    if (highlightEnabled) {
-      highlightPost(articleEl, matched);
-      injectCopyReplyButton(articleEl, matched);
-    }
-
-    var matchData = buildMatchData(articleEl, text, matched);
+    var templates = {};
     try {
-      chrome.runtime.sendMessage({
-        type: FBM_MESSAGE_TYPES.KEYWORD_MATCH,
-        payload: matchData,
-      });
-    } catch (e) {
-      console.warn("[FBMonitor] Failed to notify service worker:", e);
+      templates = await FBM_Storage.getReplyTemplates();
+    } catch (e) {}
+
+    // Strategy: find all dir="auto" text blocks (Facebook's text rendering)
+    var textBlocks = container.querySelectorAll('div[dir="auto"], span[dir="auto"]');
+
+    for (var i = 0; i < textBlocks.length; i++) {
+      var block = textBlocks[i];
+      if (block.hasAttribute("data-fbm-scanned")) continue;
+      block.setAttribute("data-fbm-scanned", "true");
+
+      var text = block.textContent || "";
+      if (text.trim().length < 3) continue;
+
+      var matched = matchKeywords(text, keywords);
+      if (matched.length === 0) continue;
+
+      console.log("[FBMonitor] MATCH:", matched.join(", "), "in:", text.substring(0, 100));
+
+      // Find the containing feed item to highlight
+      var feedItem = findFeedItem(block, container);
+      if (!feedItem) continue;
+      if (feedItem.classList.contains(FBM_SELECTORS.MATCHED_CLASS)) continue;
+
+      if (highlightEnabled) {
+        highlightPost(feedItem, matched);
+        injectCopyReplyButton(feedItem, matched, templates);
+      }
+
+      var matchData = buildMatchData(feedItem, text, matched);
+      try {
+        chrome.runtime.sendMessage({
+          type: FBM_MESSAGE_TYPES.KEYWORD_MATCH,
+          payload: matchData,
+        });
+      } catch (e) {}
     }
   }
 
-  function extractPostText(articleEl) {
-    // Use textContent (not innerText) — it returns ALL text nodes regardless
-    // of CSS visibility. innerText can return empty when Facebook lazy-renders
-    // content or uses display tricks. textContent is more reliable.
-    var text = articleEl.textContent || "";
-    // If textContent is too short, try innerText as fallback
-    if (text.trim().length < 10) {
-      text = articleEl.innerText || "";
+  // Walk up from the matched text block to find the feed item container.
+  // A feed item is a direct child of the feed, or a child one level deep.
+  function findFeedItem(element, feed) {
+    var el = element;
+    while (el && el !== feed && el !== document.body) {
+      if (el.parentElement === feed) return el;
+      el = el.parentElement;
     }
-    return text;
+    // Fallback: find the closest article
+    var article = element.closest('div[role="article"]');
+    if (article) return article;
+    // Last resort: return the element's grandparent
+    if (element.parentElement && element.parentElement.parentElement) {
+      return element.parentElement.parentElement;
+    }
+    return null;
   }
 
   function matchKeywords(text, keywords) {
@@ -152,26 +142,19 @@
     });
   }
 
-  function highlightPost(articleEl, matchedKeywords) {
-    if (articleEl.classList.contains(FBM_SELECTORS.MATCHED_CLASS)) return;
-    articleEl.classList.add(FBM_SELECTORS.MATCHED_CLASS);
+  function highlightPost(feedItem, matchedKeywords) {
+    if (feedItem.classList.contains(FBM_SELECTORS.MATCHED_CLASS)) return;
+    feedItem.classList.add(FBM_SELECTORS.MATCHED_CLASS);
+    feedItem.style.position = "relative";
 
     var badge = document.createElement("div");
     badge.className = FBM_SELECTORS.BADGE_CLASS;
     badge.textContent = "FBM: " + matchedKeywords.join(", ");
-    articleEl.style.position = "relative";
-    articleEl.prepend(badge);
+    feedItem.prepend(badge);
   }
 
-  async function injectCopyReplyButton(articleEl, matchedKeywords) {
-    if (articleEl.querySelector("." + FBM_SELECTORS.COPY_BTN_CLASS)) return;
-
-    var templates;
-    try {
-      templates = await FBM_Storage.getReplyTemplates();
-    } catch (e) {
-      return;
-    }
+  function injectCopyReplyButton(feedItem, matchedKeywords, templates) {
+    if (feedItem.querySelector("." + FBM_SELECTORS.COPY_BTN_CLASS)) return;
 
     var firstMatchTemplate = null;
     for (var i = 0; i < matchedKeywords.length; i++) {
@@ -180,7 +163,6 @@
         break;
       }
     }
-
     if (!firstMatchTemplate) return;
 
     var btn = document.createElement("button");
@@ -204,35 +186,33 @@
       }
     });
 
-    var badge = articleEl.querySelector("." + FBM_SELECTORS.BADGE_CLASS);
+    var badge = feedItem.querySelector("." + FBM_SELECTORS.BADGE_CLASS);
     if (badge) {
       badge.after(btn);
     } else {
-      articleEl.prepend(btn);
+      feedItem.prepend(btn);
     }
   }
 
-  function buildMatchData(articleEl, text, matchedKeywords) {
+  function buildMatchData(feedItem, text, matchedKeywords) {
     var postUrl = window.location.href;
-    for (var i = 0; i < FBM_SELECTORS.POST_LINK_SELECTORS.length; i++) {
-      var link = articleEl.querySelector(FBM_SELECTORS.POST_LINK_SELECTORS[i]);
-      if (link) {
-        postUrl = link.href;
+    var links = feedItem.querySelectorAll("a[href]");
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].href || "";
+      if (href.includes("/posts/") || href.includes("/permalink/") || href.includes("story_fbid")) {
+        postUrl = href;
         break;
       }
     }
 
     var authorName = "Unknown";
-    for (var j = 0; j < FBM_SELECTORS.AUTHOR_SELECTORS.length; j++) {
-      var el = articleEl.querySelector(FBM_SELECTORS.AUTHOR_SELECTORS[j]);
-      if (el && (el.innerText || "").trim()) {
-        authorName = el.innerText.trim();
-        break;
-      }
+    var strongEls = feedItem.querySelectorAll("strong");
+    if (strongEls.length > 0) {
+      authorName = strongEls[0].textContent || "Unknown";
     }
 
     var h1 = document.querySelector("h1");
-    var groupName = h1 ? h1.innerText : "Unknown Group";
+    var groupName = h1 ? h1.textContent : "Unknown Group";
 
     return {
       postText: text.substring(0, FBM_DEFAULTS.MAX_POST_TEXT_LENGTH),
@@ -244,41 +224,54 @@
     };
   }
 
-  // Periodic re-scan — catches posts missed by MutationObserver and handles
-  // the case where keywords were added after initial page load.
+  // Periodic re-scan catches new content loaded by scrolling
   function startPeriodicScan() {
     setInterval(function () {
       if (currentFeed && document.body.contains(currentFeed)) {
-        scanNewPosts(currentFeed);
+        scanFeed(currentFeed);
       }
     }, PERIODIC_SCAN_MS);
   }
 
-  // SPA navigation detection — Facebook is a single-page app
+  // Fallback: scan the whole page when no feed container exists
+  function startPeriodicPageScan() {
+    setInterval(function () {
+      var feed = document.querySelector('div[role="feed"]');
+      if (feed) {
+        currentFeed = feed;
+        scanFeed(feed);
+      } else {
+        scanFeed(document.body);
+      }
+    }, PERIODIC_SCAN_MS);
+  }
+
+  // SPA navigation detection
   function startNavigationWatcher() {
     var lastUrl = location.href;
-
     setInterval(function () {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         console.log("[FBMonitor] Navigation detected:", lastUrl);
-        reattachIfNeeded();
+        reattach();
       }
       if (currentFeed && !document.body.contains(currentFeed)) {
-        console.log("[FBMonitor] Feed detached, re-attaching...");
-        reattachIfNeeded();
+        reattach();
       }
     }, FEED_CHECK_INTERVAL_MS);
   }
 
-  async function reattachIfNeeded() {
+  async function reattach() {
     if (!location.href.includes("/groups/")) return;
     if (feedObserver) feedObserver.disconnect();
 
-    var feed = await waitForFeed();
+    var feed = await waitForElement('div[role="feed"]', 10000);
     if (feed) {
+      currentFeed = feed;
       observeFeed(feed);
-      scanExistingPosts(feed);
+      scanFeed(feed);
+    } else {
+      scanFeed(document.body);
     }
   }
 
@@ -286,14 +279,15 @@
   chrome.runtime.onMessage.addListener(function (message) {
     if (message.type === FBM_MESSAGE_TYPES.CONFIG_UPDATED) {
       console.log("[FBMonitor] Config updated, re-scanning...");
+      // Clear all scan markers so everything gets re-checked
+      var scanned = document.querySelectorAll("[data-fbm-scanned]");
+      scanned.forEach(function (el) {
+        el.removeAttribute("data-fbm-scanned");
+      });
       if (currentFeed) {
-        var articles = currentFeed.querySelectorAll(
-          "[" + FBM_SELECTORS.PROCESSED_ATTR + "]",
-        );
-        articles.forEach(function (a) {
-          a.removeAttribute(FBM_SELECTORS.PROCESSED_ATTR);
-        });
-        scanExistingPosts(currentFeed);
+        scanFeed(currentFeed);
+      } else {
+        scanFeed(document.body);
       }
     }
   });
