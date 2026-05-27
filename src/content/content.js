@@ -3,7 +3,7 @@
 // notifies the service worker for webhook dispatch.
 
 (function () {
-  console.log("[FBMonitor] Content script loaded on", location.href);
+  // console.log("[FBMonitor] loaded on", location.href);
 
   var currentFeed = null;
   var feedObserver = null;
@@ -13,14 +13,11 @@
   var PERIODIC_SCAN_MS = 3000;
 
   async function init() {
-    console.log("[FBMonitor] Waiting for feed container...");
     var feed = await waitForElement('div[role="feed"]', 30000);
     if (!feed) {
-      console.warn("[FBMonitor] No feed found, trying full page scan...");
       startPeriodicPageScan();
       return;
     }
-    console.log("[FBMonitor] Feed found, starting observer.");
     currentFeed = feed;
     observeFeed(feed);
     scanFeed(feed);
@@ -95,7 +92,6 @@
       var matched = matchKeywords(text, keywords);
       if (matched.length === 0) continue;
 
-      console.log("[FBMonitor] MATCH:", matched.join(", "), "in:", text.substring(0, 100));
 
       // Find the containing feed item to highlight
       var feedItem = findFeedItem(block, container);
@@ -289,7 +285,6 @@
     setInterval(function () {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
-        console.log("[FBMonitor] Navigation detected:", lastUrl);
         reattach();
       }
       if (currentFeed && !document.body.contains(currentFeed)) {
@@ -315,7 +310,6 @@
   // Listen for config changes from popup/options
   chrome.runtime.onMessage.addListener(function (message) {
     if (message.type === FBM_MESSAGE_TYPES.CONFIG_UPDATED) {
-      console.log("[FBMonitor] Config updated, re-scanning...");
       // Clear all scan markers so everything gets re-checked
       var scanned = document.querySelectorAll("[data-fbm-scanned]");
       scanned.forEach(function (el) {
