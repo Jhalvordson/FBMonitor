@@ -103,7 +103,7 @@
         injectCopyReplyButton(feedItem, matched, templates);
       }
 
-      var matchData = buildMatchData(feedItem, text, matched);
+      var matchData = buildMatchData(feedItem, text, matched, block);
       try {
         chrome.runtime.sendMessage({
           type: FBM_MESSAGE_TYPES.KEYWORD_MATCH,
@@ -190,8 +190,22 @@
     }
   }
 
-  function buildMatchData(feedItem, text, matchedKeywords) {
+  function buildMatchData(feedItem, text, matchedKeywords, textBlock) {
     var postUrl = findPostUrl(feedItem);
+    // If feedItem didn't have a post link, try searching from the text block upward
+    if (postUrl === window.location.href && textBlock) {
+      var el = textBlock;
+      while (el && el !== feedItem) {
+        el = el.parentElement;
+        if (el) {
+          var nearbyUrl = findPostUrl(el);
+          if (nearbyUrl !== window.location.href) {
+            postUrl = nearbyUrl;
+            break;
+          }
+        }
+      }
+    }
     var authorName = findAuthorName(feedItem);
     var groupName = findGroupName();
 
@@ -245,35 +259,42 @@
   }
 
   function findPostUrl(feedItem) {
-    // Facebook post permalinks are in <a> tags with timestamps.
-    // They contain patterns like /groups/ID/posts/ID or /permalink/ID
-    // Look through ALL links in the feed item for a post permalink.
     var links = feedItem.querySelectorAll("a[href]");
     var candidates = [];
 
     for (var i = 0; i < links.length; i++) {
       var href = links[i].href || "";
-      // Direct post URLs
-      if (href.match(/\/groups\/\d+\/posts\/\d+/)) {
-        candidates.push(href);
-      } else if (href.match(/\/groups\/\d+\/permalink\/\d+/)) {
-        candidates.push(href);
-      } else if (href.includes("story_fbid=")) {
-        candidates.push(href);
-      }
-      // Timestamp links often have the post permalink
-      // They're usually short links with just the group/post IDs
-      if (href.match(/\/groups\/[^/]+\/posts\//) || href.match(/\/permalink\//)) {
+      if (!href || href === "#" || href === "about:blank") continue;
+
+      // Any link containing /posts/, /permalink/, or story_fbid
+      if (
+        href.includes("/posts/") ||
+        href.includes("/permalink/") ||
+        href.includes("story_fbid") ||
+        href.includes("multi_permalinks")
+      ) {
         candidates.push(href);
       }
     }
 
-    // Prefer the shortest/cleanest URL (most likely the actual permalink)
     if (candidates.length > 0) {
-      candidates.sort(function (a, b) { return a.length - b.length; });
-      // Clean tracking params
-      var url = candidates[0].split("?")[0];
-      return url;
+      // Prefer URLs with /posts/ or /permalink/ (cleaner than story_fbid)
+      var best = candidates.find(function (u) {
+        return u.includes("/posts/") || u.includes("/permalink/");
+      });
+      var url = best || candidates[0];
+      // Strip tracking params but keep the path
+      return url.split("?")[0];
+    }
+
+    // Fallback: look for timestamp links — they often have aria-label with
+    // a time value and link to the post
+    var timeLinks = feedItem.querySelectorAll('a[aria-label]');
+    for (var j = 0; j < timeLinks.length; j++) {
+      var tHref = timeLinks[j].href || "";
+      if (tHref && tHref.includes("facebook.com") && tHref !== window.location.href) {
+        return tHref.split("?")[0];
+      }
     }
 
     return window.location.href;
