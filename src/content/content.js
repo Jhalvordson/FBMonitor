@@ -89,16 +89,10 @@
     if (articleEl.hasAttribute(FBM_SELECTORS.PROCESSED_ATTR)) return;
     articleEl.setAttribute(FBM_SELECTORS.PROCESSED_ATTR, "true");
 
-    // Skip nested articles (comments) — only process top-level posts
-    if (articleEl.parentElement && articleEl.parentElement.closest('div[role="article"]')) {
-      return;
-    }
-
     var keywords;
     try {
       keywords = await FBM_Storage.getKeywords();
     } catch (e) {
-      console.error("[FBMonitor] Failed to get keywords:", e);
       return;
     }
 
@@ -106,16 +100,12 @@
 
     var highlightEnabled = await FBM_Storage.getHighlightEnabled();
     var text = extractPostText(articleEl);
-    console.log(
-      "[FBMonitor] Post text (" + text.length + " chars):",
-      text.substring(0, 120),
-    );
-    if (!text.trim()) return;
+    if (!text.trim() || text.length < 5) return;
 
     var matched = matchKeywords(text, keywords);
     if (matched.length === 0) return;
 
-    console.log("[FBMonitor] MATCH:", matched.join(", "));
+    console.log("[FBMonitor] MATCH:", matched.join(", "), "in:", text.substring(0, 80));
 
     if (highlightEnabled) {
       highlightPost(articleEl, matched);
@@ -134,11 +124,15 @@
   }
 
   function extractPostText(articleEl) {
-    // Grab all visible text from the post article.
-    // innerText respects CSS visibility and gives us the rendered text.
-    // This includes post body, author name, timestamps, and comments —
-    // that's fine, we want to catch keywords anywhere in the discussion.
-    return articleEl.innerText || articleEl.textContent || "";
+    // Use textContent (not innerText) — it returns ALL text nodes regardless
+    // of CSS visibility. innerText can return empty when Facebook lazy-renders
+    // content or uses display tricks. textContent is more reliable.
+    var text = articleEl.textContent || "";
+    // If textContent is too short, try innerText as fallback
+    if (text.trim().length < 10) {
+      text = articleEl.innerText || "";
+    }
+    return text;
   }
 
   function matchKeywords(text, keywords) {
