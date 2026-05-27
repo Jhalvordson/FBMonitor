@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "FBMonitor",
+  "version": "0.1.0",
+  "description": "Monitor Facebook group posts for keywords. Highlights matches, sends webhook notifications, and provides copy-to-clipboard reply templates.",
+  "permissions": ["storage", "alarms", "notifications"],
+  "host_permissions": [
+    "https://www.facebook.com/*",
+    "https://*.webhook.office.com/*",
+    "https://*.logic.azure.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/groups/*"],
+      "js": [
+        "shared/constants.js",
+        "shared/storage.js",
+        "content/selectors.js",
+        "content/content.js"
+      ],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

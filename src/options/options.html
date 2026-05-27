@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FBMonitor — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="options-container">
+      <header class="options-header">
+        <h1>FBMonitor Settings</h1>
+      </header>
+
+      <section class="card">
+        <h2>Webhook Configuration</h2>
+        <p class="help-text">
+          Paste your Microsoft Teams incoming webhook URL. This is stored
+          locally on your machine and never synced to Google.
+        </p>
+        <div class="input-group">
+          <label for="webhook-url">Webhook URL</label>
+          <input
+            type="url"
+            id="webhook-url"
+            placeholder="https://your-org.webhook.office.com/..."
+          />
+        </div>
+        <div class="input-group">
+          <label for="rate-limit">Rate limit (seconds between webhooks)</label>
+          <input type="number" id="rate-limit" min="1" max="300" value="10" />
+        </div>
+        <div class="button-row">
+          <button id="save-webhook-btn" class="btn btn-primary">
+            Save Webhook
+          </button>
+          <button id="test-webhook-btn" class="btn btn-secondary">
+            Send Test
+          </button>
+        </div>
+        <div id="webhook-status" class="status-msg"></div>
+      </section>
+
+      <section class="card">
+        <h2>Reply Templates</h2>
+        <p class="help-text">
+          Configure a reply template for each keyword. When a post matches, a
+          "Copy Reply" button appears — click it to copy the template to your
+          clipboard, then paste into the Facebook comment box.
+        </p>
+        <div id="template-list" class="template-list"></div>
+        <div id="no-keywords-msg" class="help-text" style="display: none">
+          Add keywords in the popup first, then configure reply templates here.
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Match History</h2>
+        <div class="button-row">
+          <button id="export-csv-btn" class="btn btn-secondary">
+            Export CSV
+          </button>
+          <button id="clear-history-btn" class="btn btn-danger">
+            Clear History
+          </button>
+        </div>
+        <div id="history-table-container" class="history-container">
+          <table id="history-table" class="history-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Group</th>
+                <th>Keywords</th>
+                <th>Preview</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,89 @@
+# Pre-commit hooks — run on every `git commit`.
+# Charter Section 4: hooks must pass. Never `--no-verify` except with stated reason.
+#
+# Install once per clone: `pre-commit install`
+# Run manually against all files: `pre-commit run --all-files`
+
+# Global exclude — files that no hook should touch.
+# Dashboard.html is hand-tuned; the offline file, manifest, and vendor library
+# are generated/vendored. Prettier, line-ending fixers, and large-file checks
+# all skip them.
+exclude: |
+  (?x)^(
+    docs/dashboard\.html|
+    docs/dashboard\.offline\.html|
+    docs/\.dashboard-manifest\.json|
+    docs/vendor/.*
+  )$
+
+repos:
+  # General hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # Secret scanning — charter Section 4 (secrets never in version control)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # Python formatting + linting — Ruff handles both
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # JavaScript / HTML / CSS / Markdown formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or:
+          [javascript, jsx, ts, tsx, html, css, scss, json, yaml, markdown]
+        # Additional prettier-only excludes (the global exclude already covers
+        # dashboard files + vendor; these are also skipped by prettier so
+        # natural-language content isn't reformatted).
+        exclude: |
+          (?x)^(
+            CHANGELOG\.md|
+            docs/personal/reviews/.*\.md|
+            docs/dashboard\.html|
+            docs/dashboard\.offline\.html|
+            docs/\.dashboard-manifest\.json|
+            docs/vendor/.*
+          )$
+
+  # Conventional Commits format check (commit messages)
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          [
+            feat,
+            fix,
+            refactor,
+            docs,
+            chore,
+            test,
+            perf,
+            style,
+            build,
+            ci,
+            revert,
+          ]

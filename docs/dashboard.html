@@ -1,0 +1,1820 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Project status dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --bg: #0d1117;
+        --bg-elev: #161b22;
+        --bg-elev-2: #1c232c;
+        --border: #30363d;
+        --border-strong: #484f58;
+        --fg: #e6edf3;
+        --fg-muted: #8b949e;
+        --fg-dim: #6e7681;
+        --accent: #58a6ff;
+        --accent-dim: #1f6feb;
+        --rfc: #58a6ff;
+        --adr: #d2a8ff;
+        --idea: #7ee787;
+        --decision: #ffa657;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --danger: #f85149;
+        --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      main {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px 32px 80px;
+      }
+
+      /* Banner for file:// mode */
+      .banner {
+        background: var(--bg-elev);
+        border: 1px solid var(--warn);
+        border-left-width: 4px;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      .banner strong {
+        color: var(--warn);
+      }
+      .banner code {
+        background: var(--bg);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+      }
+
+      /* Header */
+      header.page {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      header.page h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      header.page .meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .chip strong {
+        color: var(--fg);
+      }
+      .chip .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .chip .dot.warn {
+        background: var(--warn);
+      }
+      .chip .dot.danger {
+        background: var(--danger);
+      }
+
+      /* Phase tile */
+      .phase-tile {
+        background: linear-gradient(
+          135deg,
+          var(--bg-elev) 0%,
+          var(--bg-elev-2) 100%
+        );
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .phase-tile .phase-label {
+        font-size: 11px;
+        color: var(--fg-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+      .phase-tile .phase-name {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .phase-tile .phase-body {
+        font-size: 13px;
+        color: var(--fg-muted);
+        max-width: 700px;
+      }
+      .phase-tile .phase-meta {
+        text-align: right;
+        font-size: 12px;
+        color: var(--fg-muted);
+      }
+      .phase-tile .phase-meta .num {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+      }
+
+      /* Grid of tiles */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .tile {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 180px;
+      }
+      .tile.expanded {
+        grid-column: 1 / -1;
+      }
+      .tile h2 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--fg);
+      }
+      .tile h2 .count {
+        font-size: 11px;
+        color: var(--fg-dim);
+        background: var(--bg);
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        font-weight: 500;
+      }
+      .tile h2 .accent-bar {
+        width: 3px;
+        height: 14px;
+        background: var(--accent);
+        border-radius: 2px;
+      }
+      .tile.rfcs h2 .accent-bar {
+        background: var(--rfc);
+      }
+      .tile.adrs h2 .accent-bar {
+        background: var(--adr);
+      }
+      .tile.ideas h2 .accent-bar {
+        background: var(--idea);
+      }
+      .tile.decisions h2 .accent-bar {
+        background: var(--decision);
+      }
+      .tile.review h2 .accent-bar {
+        background: var(--ok);
+      }
+      .tile.compliance h2 .accent-bar {
+        background: var(--ok);
+      }
+      .tile.warnings h2 .accent-bar {
+        background: var(--warn);
+      }
+
+      .tile .empty {
+        color: var(--fg-dim);
+        font-size: 13px;
+        font-style: italic;
+        padding: 16px 0;
+      }
+      .tile .empty .hint {
+        display: block;
+        margin-top: 6px;
+        font-style: normal;
+        font-size: 12px;
+      }
+      .tile .empty code {
+        background: var(--bg);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--fg-muted);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        padding: 8px 0;
+        border-top: 1px solid var(--border);
+        align-items: center;
+        font-size: 13px;
+        position: relative;
+      }
+      .row:first-of-type {
+        border-top: none;
+      }
+      .row .num {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--fg-dim);
+        min-width: 48px;
+      }
+      .row .label {
+        color: var(--fg);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row .meta {
+        font-size: 11px;
+        color: var(--fg-muted);
+        white-space: nowrap;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .row .actions {
+        display: none;
+        gap: 4px;
+      }
+      .row:hover .actions {
+        display: flex;
+      }
+      .row .actions button {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--fg-muted);
+        cursor: pointer;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        transition: all 0.1s;
+      }
+      .row .actions button:hover {
+        background: var(--bg);
+        color: var(--fg);
+        border-color: var(--border-strong);
+      }
+
+      .status-tag {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-weight: 600;
+        border: 1px solid currentColor;
+      }
+      .status-tag.draft {
+        color: var(--warn);
+      }
+      .status-tag.accepted {
+        color: var(--ok);
+      }
+      .status-tag.implemented {
+        color: var(--fg-dim);
+      }
+      .status-tag.superseded {
+        color: var(--fg-dim);
+        text-decoration: line-through;
+      }
+      .status-tag.rejected {
+        color: var(--danger);
+      }
+      .status-tag.proposed {
+        color: var(--warn);
+      }
+      .status-tag.deprecated {
+        color: var(--fg-dim);
+      }
+
+      .row .label.strike {
+        text-decoration: line-through;
+        color: var(--fg-dim);
+      }
+      .row.stale .num::after {
+        content: "•";
+        color: var(--warn);
+        margin-left: 4px;
+      }
+
+      /* Compliance widget */
+      .compliance-meter {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 0;
+        flex: 1;
+      }
+      .compliance-meter .score {
+        font-size: 44px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ok);
+      }
+      .compliance-meter .score.warn {
+        color: var(--warn);
+      }
+      .compliance-meter .score.danger {
+        color: var(--danger);
+      }
+      .compliance-meter .label {
+        font-size: 11px;
+        color: var(--fg-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 6px;
+      }
+      .compliance-meter .review-date {
+        font-size: 11px;
+        color: var(--fg-muted);
+        margin-top: 4px;
+      }
+
+      /* Toolbar buttons in tile headers */
+      .tile-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 6px;
+      }
+      .tile-actions button {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--fg-muted);
+        cursor: pointer;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        transition: all 0.1s;
+      }
+      .tile-actions button:hover {
+        background: var(--bg);
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      /* Graph section */
+      .graph-section {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 24px;
+      }
+      .graph-section h2 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .graph-section h2 .accent-bar {
+        width: 3px;
+        height: 14px;
+        background: var(--accent);
+        border-radius: 2px;
+      }
+      .graph-container {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 20px;
+        min-height: 200px;
+        overflow-x: auto;
+        text-align: center;
+      }
+      .graph-container svg {
+        max-width: 100%;
+        height: auto;
+      }
+      .graph-fallback {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        color: var(--fg-muted);
+        text-align: left;
+        white-space: pre-wrap;
+      }
+      .graph-empty {
+        color: var(--fg-dim);
+        font-style: italic;
+        padding: 30px 0;
+      }
+
+      /* Toast */
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: var(--bg-elev);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 12px 20px;
+        box-shadow: var(--shadow);
+        max-width: 400px;
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(20px);
+        transition:
+          opacity 0.2s,
+          transform 0.2s;
+        z-index: 100;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      #toast strong {
+        color: var(--accent);
+        display: block;
+        margin-bottom: 4px;
+      }
+      #toast code {
+        background: var(--bg);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: ui-monospace, monospace;
+        font-size: 11px;
+      }
+
+      /* Manual-copy fallback textarea */
+      .copy-fallback {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-elev);
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+        max-width: 600px;
+        width: 90%;
+        z-index: 200;
+      }
+      .copy-fallback h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+      .copy-fallback textarea {
+        width: 100%;
+        min-height: 200px;
+        background: var(--bg);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        resize: vertical;
+      }
+      .copy-fallback .actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 12px;
+      }
+      .copy-fallback button {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--fg);
+        padding: 6px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .copy-fallback button.primary {
+        background: var(--accent-dim);
+        border-color: var(--accent);
+      }
+
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 150;
+      }
+
+      /* Mermaid dark overrides */
+      .mermaid {
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="banner-host"></div>
+
+      <header class="page">
+        <h1 id="project-title">Project status</h1>
+        <div class="meta" id="header-meta"></div>
+      </header>
+
+      <div id="phase-host"></div>
+
+      <div class="grid" id="grid-host"></div>
+
+      <section class="graph-section" id="graph-section" style="display: none">
+        <h2><span class="accent-bar"></span>Architecture &amp; dependencies</h2>
+        <div class="graph-container" id="graph-container"></div>
+      </section>
+    </main>
+
+    <div id="toast"></div>
+
+    <!-- Inlined data (offline mode). Populated by scripts/build-dashboard.py. -->
+    <script type="application/json" id="inlined-data">
+      __INLINED_DATA__
+    </script>
+
+    <script
+      src="vendor/mermaid.min.js"
+      onerror="window.__mermaidFailed = true"
+    ></script>
+
+    <script>
+      "use strict";
+
+      // ============================================================================
+      // Config
+      // ============================================================================
+
+      const PATHS = {
+        charter: "engineering-charter.md",
+        phase: "phase.md",
+        decisions: "decisions/register.md",
+        rfcDir: "rfc/",
+        adrDir: "adr/",
+        ideaDir: "ideas/",
+        reviewDir: "personal/reviews/",
+        manifest: ".dashboard-manifest.json",
+      };
+
+      const TEMPLATE_FILES = new Set(["0000-template.md", "README.md"]);
+
+      const PROJECT_NAME = "claude-starter";
+
+      // ============================================================================
+      // Parser
+      // ============================================================================
+
+      function parseFrontmatter(text) {
+        const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+        if (!m)
+          return { fm: {}, body: text, malformed: text.startsWith("---") };
+        const body = text.slice(m[0].length);
+        const fm = {};
+        for (const line of m[1].split(/\r?\n/)) {
+          const stripped = line.replace(/\s+#.*$/, "");
+          const kv = stripped.match(/^([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)$/);
+          if (!kv) continue;
+          let val = kv[2].trim();
+          if (val === "") {
+            fm[kv[1]] = null;
+            continue;
+          }
+          if (val.startsWith("[") && val.endsWith("]")) {
+            const inner = val.slice(1, -1).trim();
+            fm[kv[1]] =
+              inner === ""
+                ? []
+                : inner.split(",").map((s) => {
+                    const t = s.trim().replace(/^['"]|['"]$/g, "");
+                    const n = Number(t);
+                    return /^-?\d+(\.\d+)?$/.test(t) && Number.isFinite(n)
+                      ? n
+                      : t;
+                  });
+          } else if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+          ) {
+            fm[kv[1]] = val.slice(1, -1);
+          } else {
+            const n = Number(val);
+            fm[kv[1]] =
+              /^-?\d+(\.\d+)?$/.test(val) && Number.isFinite(n) ? n : val;
+          }
+        }
+        return { fm, body, malformed: false };
+      }
+
+      function parseSection(body, heading) {
+        const re = new RegExp(
+          "^##\\s+" + heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$",
+          "mi",
+        );
+        const m = body.match(re);
+        if (!m) return "";
+        const start = m.index + m[0].length;
+        const rest = body.slice(start);
+        const next = rest.match(/^##\s+/m);
+        return (next ? rest.slice(0, next.index) : rest).trim();
+      }
+
+      function parseListItems(sectionText) {
+        return sectionText
+          .split(/\r?\n/)
+          .map((l) => l.match(/^\s*[-*]\s+(?:\[[ x]\]\s+)?(.+)$/))
+          .filter(Boolean)
+          .map((m) => m[1].trim());
+      }
+
+      function parseFirstHeading(body, level) {
+        const prefix = "#".repeat(level);
+        const re = new RegExp("^" + prefix + "\\s+(.+)$", "m");
+        const m = body.match(re);
+        return m ? m[1].trim() : "";
+      }
+
+      function parseTable(body, headingText) {
+        const re = new RegExp(
+          "^##\\s+" +
+            headingText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+            "\\s*$",
+          "mi",
+        );
+        const m = body.match(re);
+        if (!m) return [];
+        const start = m.index + m[0].length;
+        const rest = body.slice(start);
+        const next = rest.match(/^##\s+/m);
+        const section = next ? rest.slice(0, next.index) : rest;
+        const lines = section.split(/\r?\n/).filter((l) => l.includes("|"));
+        if (lines.length < 2) return [];
+        // header row, separator, data rows
+        const header = lines[0]
+          .split("|")
+          .map((c) => c.trim())
+          .filter(Boolean);
+        const rows = [];
+        for (let i = 2; i < lines.length; i++) {
+          const cells = lines[i].split("|").map((c) => c.trim());
+          // Strip leading/trailing empties from `| a | b |` form
+          if (cells[0] === "") cells.shift();
+          if (cells[cells.length - 1] === "") cells.pop();
+          if (cells.length === 0) continue;
+          // Skip italic-underscored placeholders
+          if (cells[0] && /^_.*_$/.test(cells[0])) continue;
+          const row = {};
+          for (let j = 0; j < header.length && j < cells.length; j++) {
+            row[header[j]] = cells[j];
+          }
+          rows.push(row);
+        }
+        return rows;
+      }
+
+      // ============================================================================
+      // File discovery
+      // ============================================================================
+
+      async function fetchText(url) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) return null;
+          return await r.text();
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function fetchJSON(url) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) return null;
+          return await r.json();
+        } catch (e) {
+          return null;
+        }
+      }
+
+      // Parse `python -m http.server` directory listing HTML.
+      function parseDirListing(html) {
+        if (!html) return null;
+        // Detect HTML responses; bail otherwise.
+        if (!/<a\s+href=/i.test(html)) return null;
+        const re = /<a\s+href="([^"]+\.md)"/gi;
+        const out = [];
+        let m;
+        while ((m = re.exec(html)) !== null) {
+          let name = m[1];
+          if (name.startsWith("./")) name = name.slice(2);
+          if (name.includes("/")) continue; // skip nested
+          if (TEMPLATE_FILES.has(name)) continue;
+          out.push(name);
+        }
+        return out;
+      }
+
+      async function discoverFiles(dirPath, state) {
+        // 1) Try directory listing.
+        const listing = await fetchText(dirPath);
+        const parsed = parseDirListing(listing);
+        if (parsed !== null) return parsed;
+
+        // 2) Try manifest.
+        if (!state.manifest && !state.manifestTried) {
+          state.manifestTried = true;
+          state.manifest = await fetchJSON(PATHS.manifest);
+        }
+        if (state.manifest && state.manifest[dirPath]) {
+          return state.manifest[dirPath].filter((n) => !TEMPLATE_FILES.has(n));
+        }
+
+        return [];
+      }
+
+      // ============================================================================
+      // Loaders (per source type)
+      // ============================================================================
+
+      async function loadCharter(model) {
+        const text = await fetchText(PATHS.charter);
+        if (!text) return;
+        const { fm } = parseFrontmatter(text);
+        model.charter = { version: fm.version, last_updated: fm.last_updated };
+        if (fm.version == null)
+          model.warnings.push({
+            file: PATHS.charter,
+            msg: "missing `version`",
+          });
+      }
+
+      async function loadPhase(model) {
+        const text = await fetchText(PATHS.phase);
+        if (!text) return;
+        const { fm, body } = parseFrontmatter(text);
+        const heading = parseFirstHeading(body, 2);
+        const m = heading.match(/^Current phase:\s*(.+)$/i);
+        model.phase = {
+          phase: fm.phase ?? null,
+          target_end: fm.target_end ?? null,
+          name: m ? m[1].trim() : heading,
+          body:
+            parseSection(body, m ? "Current phase:.*" : heading) ||
+            body
+              .split(/\r?\n##\s/)[0]
+              .trim()
+              .split(/\r?\n/)
+              .slice(1)
+              .join("\n")
+              .trim(),
+        };
+        // Capture first paragraph after the heading for the phase body summary.
+        const headingMatch = body.match(/^##\s+Current phase:.*$/im);
+        if (headingMatch) {
+          const after = body
+            .slice(headingMatch.index + headingMatch[0].length)
+            .trim();
+          const paragraphs = after.split(/\r?\n\s*\r?\n/);
+          model.phase.body = paragraphs[0] || "";
+        }
+      }
+
+      async function loadRFCs(model, state) {
+        const files = await discoverFiles(PATHS.rfcDir, state);
+        for (const name of files) {
+          const text = await fetchText(PATHS.rfcDir + name);
+          if (!text) continue;
+          const { fm, body, malformed } = parseFrontmatter(text);
+          if (malformed) {
+            model.warnings.push({
+              file: PATHS.rfcDir + name,
+              msg: "malformed frontmatter",
+            });
+            continue;
+          }
+          const rfc = {
+            file: PATHS.rfcDir + name,
+            filename: name,
+            num: fm.rfc,
+            title: fm.title || name.replace(/^\d+-/, "").replace(/\.md$/, ""),
+            status: fm.status || "draft",
+            created: fm.created,
+            linked_adrs: Array.isArray(fm.linked_adrs) ? fm.linked_adrs : [],
+            linked_ideas: Array.isArray(fm.linked_ideas) ? fm.linked_ideas : [],
+            goals: parseListItems(parseSection(body, "Goals")).slice(0, 5),
+            open_questions: parseListItems(
+              parseSection(body, "Open questions"),
+            ).slice(0, 5),
+          };
+          if (rfc.num == null)
+            model.warnings.push({
+              file: rfc.file,
+              msg: "missing `rfc` number",
+            });
+          if (rfc.status === "draft" && rfc.created) {
+            const age = daysSince(rfc.created);
+            if (age != null && age > 30) rfc.stale = true;
+          }
+          model.rfcs.push(rfc);
+        }
+        model.rfcs.sort((a, b) => (b.num || 0) - (a.num || 0));
+      }
+
+      async function loadADRs(model, state) {
+        const files = await discoverFiles(PATHS.adrDir, state);
+        for (const name of files) {
+          const text = await fetchText(PATHS.adrDir + name);
+          if (!text) continue;
+          const { fm, body, malformed } = parseFrontmatter(text);
+          if (malformed) {
+            model.warnings.push({
+              file: PATHS.adrDir + name,
+              msg: "malformed frontmatter",
+            });
+            continue;
+          }
+          const adr = {
+            file: PATHS.adrDir + name,
+            filename: name,
+            num: fm.adr,
+            title: fm.title || name.replace(/^\d+-/, "").replace(/\.md$/, ""),
+            status: fm.status || "proposed",
+            date: fm.date,
+            supersedes: fm.supersedes || null,
+            superseded_by: fm["superseded-by"] || null,
+            linked_rfcs: Array.isArray(fm.linked_rfcs) ? fm.linked_rfcs : [],
+            decision:
+              parseSection(body, "Decision").split(/\r?\n\s*\r?\n/)[0] || "",
+          };
+          if (adr.num == null)
+            model.warnings.push({
+              file: adr.file,
+              msg: "missing `adr` number",
+            });
+          model.adrs.push(adr);
+        }
+        model.adrs.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+      }
+
+      async function loadDecisions(model) {
+        const text = await fetchText(PATHS.decisions);
+        if (!text) return;
+        model.decisions.open = parseTable(text, "Open");
+        model.decisions.closed = parseTable(
+          text,
+          "Recently closed \\(last 90 days\\)",
+        );
+      }
+
+      async function loadIdeas(model, state) {
+        const files = await discoverFiles(PATHS.ideaDir, state);
+        for (const name of files) {
+          const text = await fetchText(PATHS.ideaDir + name);
+          if (!text) continue;
+          const { body } = parseFrontmatter(text);
+          const fullBody = body || text;
+          const titleMatch = fullBody.match(/^#\s+(?:Idea:\s*)?(.+)$/m);
+          const parkedMatch = fullBody.match(/\*\*Parked:\*\*\s*([0-9-]+)/);
+          const promoteMatch = fullBody.match(
+            /\*\*Earliest promotion:\*\*\s*([0-9-]+)/,
+          );
+          const problem = parseSection(fullBody, "Problem");
+          model.ideas.push({
+            file: PATHS.ideaDir + name,
+            filename: name,
+            slug: name.replace(/\.md$/, ""),
+            name: titleMatch ? titleMatch[1].trim() : name.replace(/\.md$/, ""),
+            parked: parkedMatch ? parkedMatch[1] : null,
+            earliest: promoteMatch ? promoteMatch[1] : null,
+            problem: problem.split(/\r?\n\s*\r?\n/)[0] || "",
+          });
+        }
+        model.ideas.sort((a, b) =>
+          (b.parked || "").localeCompare(a.parked || ""),
+        );
+      }
+
+      async function loadLatestReview(model, state) {
+        const files = await discoverFiles(PATHS.reviewDir, state);
+        if (files.length === 0) return;
+        files.sort().reverse();
+        const latest = files[0];
+        const text = await fetchText(PATHS.reviewDir + latest);
+        if (!text) return;
+        const { fm, body } = parseFrontmatter(text);
+        model.review = {
+          file: PATHS.reviewDir + latest,
+          filename: latest,
+          date: fm.date,
+          week: fm.week,
+          compliance_score:
+            typeof fm.compliance_score === "number"
+              ? fm.compliance_score
+              : null,
+          working:
+            parseSection(body, "What's working").split(/\r?\n\s*\r?\n/)[0] ||
+            "",
+          regressing:
+            parseSection(body, "What's regressing").split(/\r?\n\s*\r?\n/)[0] ||
+            "",
+        };
+      }
+
+      // ============================================================================
+      // Helpers
+      // ============================================================================
+
+      function daysSince(isoDate) {
+        if (!isoDate) return null;
+        const d = new Date(isoDate);
+        if (isNaN(d.getTime())) return null;
+        return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+      }
+
+      function pad4(n) {
+        return String(n == null ? "?" : n).padStart(4, "0");
+      }
+
+      function esc(s) {
+        return String(s ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      function absPath(repoRel) {
+        // Derive absolute path for VSCode deep links.
+        // dashboard.html lives at <repo>/docs/dashboard.html — strip /docs/dashboard.html from current URL.
+        try {
+          const here = new URL(location.href);
+          const docsIdx = here.pathname.lastIndexOf("/docs/");
+          if (docsIdx === -1) return null;
+          const repoRoot = here.pathname.slice(0, docsIdx);
+          // For local file:// or http on Windows, the path may start with /C:/...
+          const fullPath = repoRoot + "/docs/" + repoRel;
+          return decodeURIComponent(fullPath).replace(/^\/([A-Za-z]:)/, "$1");
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function vscodeLink(repoRel) {
+        const abs = absPath(repoRel);
+        if (!abs) return null;
+        return "vscode://file/" + abs;
+      }
+
+      // ============================================================================
+      // Clipboard / write affordances (Rung 1)
+      // ============================================================================
+
+      async function copyToClipboard(text, successMsg) {
+        // Prefer the modern Clipboard API; fall back to a manual-copy textarea.
+        const isSecure = window.isSecureContext;
+        if (isSecure && navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(text);
+            toast(successMsg || "Copied to clipboard");
+            return;
+          } catch (e) {
+            // fall through to manual copy
+          }
+        }
+        showManualCopy(text, successMsg);
+      }
+
+      function showManualCopy(text, label) {
+        const backdrop = document.createElement("div");
+        backdrop.className = "backdrop";
+        const box = document.createElement("div");
+        box.className = "copy-fallback";
+        box.innerHTML = `
+    <h3>${esc(label || "Copy this")}</h3>
+    <p style="color: var(--fg-muted); font-size: 12px; margin: 0 0 8px;">
+      Clipboard API needs https or localhost. Select-all + copy this text.
+    </p>
+    <textarea></textarea>
+    <div class="actions">
+      <button class="primary">Close</button>
+    </div>`;
+        box.querySelector("textarea").value = text;
+        document.body.append(backdrop, box);
+        const ta = box.querySelector("textarea");
+        ta.select();
+        const close = () => {
+          backdrop.remove();
+          box.remove();
+        };
+        backdrop.onclick = close;
+        box.querySelector("button.primary").onclick = close;
+      }
+
+      function toast(msg) {
+        const t = document.getElementById("toast");
+        t.innerHTML = msg;
+        t.classList.add("show");
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => t.classList.remove("show"), 3400);
+      }
+
+      function templateFor(kind, model) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (kind === "rfc") {
+          const next = pad4(
+            Math.max(0, ...model.rfcs.map((r) => r.num || 0)) + 1,
+          );
+          return {
+            filename: `${next}-<slug>.md`,
+            contents: `---
+rfc: ${next}
+title: <short title>
+author: <name>
+created: ${today}
+status: draft
+linked_adrs: []
+linked_ideas: []
+---
+
+# RFC ${next}: <title>
+
+## Context
+
+<!-- Why is this needed? -->
+
+## Goals
+
+- …
+
+## Non-goals
+
+- …
+
+## Proposed approach
+
+…
+
+## Alternatives considered
+
+…
+
+## Open questions
+
+- [ ] …
+
+## Pre-mortem
+
+Top three risks:
+
+1. **<risk>** — likelihood: high/med/low. Mitigation: …
+
+## Verification
+
+- …
+
+## Estimate
+
+- **Effort estimate:** <hours / days / weeks>
+
+## Changelog
+
+| Date | Change | Reviewer |
+|---|---|---|
+| ${today} | Draft created | |
+`,
+          };
+        }
+        if (kind === "adr") {
+          const next = pad4(
+            Math.max(0, ...model.adrs.map((a) => a.num || 0)) + 1,
+          );
+          return {
+            filename: `${next}-<slug>.md`,
+            contents: `---
+adr: ${next}
+title: <short title>
+status: proposed
+date: ${today}
+linked_rfcs: []
+---
+
+# ADR ${next}: <title>
+
+## Context
+
+…
+
+## Decision
+
+We will …
+
+## Consequences
+
+What becomes easier:
+- …
+
+What becomes harder:
+- …
+
+What we accept:
+- …
+
+## Alternatives considered
+
+- **<alternative>** — why not.
+
+## References
+
+- RFC NNNN (if applicable)
+`,
+          };
+        }
+        if (kind === "idea") {
+          const parked = today;
+          const promote = new Date(Date.now() + 14 * 86400_000)
+            .toISOString()
+            .slice(0, 10);
+          return {
+            filename: `<slug>.md`,
+            contents: `# Idea: <name>
+
+**Parked:** ${parked}
+**Earliest promotion:** ${promote}
+
+## Problem
+
+…
+
+## Target user
+
+…
+
+## Rough approach
+
+…
+
+## Why now
+
+…
+
+## Open questions
+
+- …
+`,
+          };
+        }
+        return null;
+      }
+
+      // ============================================================================
+      // Renderers
+      // ============================================================================
+
+      function renderBanner(model) {
+        const host = document.getElementById("banner-host");
+        if (location.protocol !== "file:") return;
+        if (model.offlineMode) return; // offline build is meant to run from file://
+        host.innerHTML = `
+    <div class="banner">
+      <strong>Live mode unavailable over <code>file://</code>.</strong>
+      Browsers block <code>fetch</code> on local files. Run
+      <code>python -m http.server</code> from the repo root and open
+      <code>http://localhost:8000/docs/dashboard.html</code>, or use
+      <code>docs/dashboard.offline.html</code> built by
+      <code>scripts/build-dashboard.py</code>.
+    </div>`;
+      }
+
+      function renderHeader(model) {
+        document.getElementById("project-title").textContent =
+          `${PROJECT_NAME} — status`;
+        const meta = document.getElementById("header-meta");
+        const chips = [];
+        if (model.charter.version) {
+          chips.push(
+            `<span class="chip"><span class="dot"></span>Charter <strong>v${esc(model.charter.version)}</strong></span>`,
+          );
+        }
+        if (model.charter.last_updated) {
+          chips.push(
+            `<span class="chip">Updated <strong>${esc(model.charter.last_updated)}</strong></span>`,
+          );
+        }
+        const ageDays = model.charter.last_updated
+          ? daysSince(model.charter.last_updated)
+          : null;
+        if (ageDays != null) {
+          const cls = ageDays > 120 ? " warn" : "";
+          chips.push(
+            `<span class="chip"><span class="dot${cls}"></span>${ageDays}d since charter update</span>`,
+          );
+        }
+        chips.push(
+          `<span class="chip"><span class="dot"></span>Agent <strong>online</strong></span>`,
+        );
+        meta.innerHTML = chips.join("");
+      }
+
+      function renderPhase(model) {
+        const host = document.getElementById("phase-host");
+        if (!model.phase || !model.phase.name) {
+          host.innerHTML = `
+      <div class="phase-tile">
+        <div>
+          <div class="phase-label">Current phase</div>
+          <div class="phase-name" style="color: var(--fg-dim); font-style: italic;">No phase set</div>
+          <div class="phase-body">Create <code>docs/phase.md</code> with a <code>## Current phase: &lt;name&gt;</code> heading.</div>
+        </div>
+      </div>`;
+          return;
+        }
+        const p = model.phase;
+        const right = p.phase
+          ? `<div class="phase-meta">
+         <div class="num">${esc(p.phase)}</div>
+         ${p.target_end ? `<div style="margin-top:6px">Target ${esc(p.target_end)}</div>` : ""}
+       </div>`
+          : "";
+        host.innerHTML = `
+    <div class="phase-tile">
+      <div>
+        <div class="phase-label">Current phase</div>
+        <div class="phase-name">${esc(p.name)}</div>
+        ${p.body ? `<div class="phase-body">${esc(p.body)}</div>` : ""}
+      </div>
+      ${right}
+    </div>`;
+      }
+
+      function renderRowActions(file) {
+        const v = vscodeLink(file);
+        const editBtn = v
+          ? `<a href="${esc(v)}" title="Open in VSCode"><button>edit</button></a>`
+          : "";
+        return `<div class="actions">
+    ${editBtn}
+    <button onclick="navigator.clipboard?.writeText('${esc(file)}'); toast('Copied path');">path</button>
+  </div>`;
+      }
+
+      function renderRFCsTile(model) {
+        const active = model.rfcs.filter(
+          (r) => r.status === "draft" || r.status === "accepted",
+        );
+        const top = active.slice(0, 6);
+        const rows = top.length
+          ? top
+              .map(
+                (r) => `
+        <div class="row${r.stale ? " stale" : ""}" title="${esc((r.goals[0] || "").slice(0, 200))}">
+          <span class="num">RFC ${pad4(r.num)}</span>
+          <span class="label">${esc(r.title)}</span>
+          <span class="meta">
+            <span class="status-tag ${esc(r.status)}">${esc(r.status)}</span>
+            ${r.created ? esc(r.created) : ""}
+          </span>
+          ${renderRowActions(r.file)}
+        </div>`,
+              )
+              .join("")
+          : `<div class="empty">No active RFCs.
+         <span class="hint">Start one with the <strong>+ New RFC</strong> button. Template lives at <code>docs/rfc/0000-template.md</code>.</span>
+       </div>`;
+        return `
+    <div class="tile rfcs" id="tile-rfcs">
+      <h2>
+        <span class="accent-bar"></span>
+        Active initiatives (RFCs)
+        <span class="count">${active.length}</span>
+        <div class="tile-actions">
+          <button onclick="newArtifact('rfc')">+ New RFC</button>
+        </div>
+      </h2>
+      ${rows}
+    </div>`;
+      }
+
+      function renderADRsTile(model) {
+        const top = model.adrs.slice(0, 6);
+        const rows = top.length
+          ? top
+              .map(
+                (a) => `
+        <div class="row" title="${esc((a.decision || "").slice(0, 200))}">
+          <span class="num">ADR ${pad4(a.num)}</span>
+          <span class="label ${a.superseded_by ? "strike" : ""}">${esc(a.title)}</span>
+          <span class="meta">
+            <span class="status-tag ${esc(a.status)}">${esc(a.status)}</span>
+            ${a.date ? esc(a.date) : ""}
+          </span>
+          ${renderRowActions(a.file)}
+        </div>`,
+              )
+              .join("")
+          : `<div class="empty">No ADRs recorded.
+         <span class="hint">Write one whenever a decision is made. Template at <code>docs/adr/0000-template.md</code>.</span>
+       </div>`;
+        return `
+    <div class="tile adrs" id="tile-adrs">
+      <h2>
+        <span class="accent-bar"></span>
+        Recent ADRs
+        <span class="count">${model.adrs.length}</span>
+        <div class="tile-actions">
+          <button onclick="newArtifact('adr')">+ New ADR</button>
+        </div>
+      </h2>
+      ${rows}
+    </div>`;
+      }
+
+      function renderDecisionsTile(model) {
+        const open = model.decisions.open || [];
+        const rows = open.length
+          ? open
+              .map(
+                (d, i) => `
+        <div class="row">
+          <span class="num">#${esc(d["#"] || i + 1)}</span>
+          <span class="label">${esc(d["Decision"] || "")}</span>
+          <span class="meta">
+            ${d["Owner"] ? `<span>${esc(d["Owner"])}</span>` : ""}
+            ${d["Decide by"] ? `<span>by ${esc(d["Decide by"])}</span>` : ""}
+          </span>
+        </div>`,
+              )
+              .join("")
+          : `<div class="empty">No open decisions.
+         <span class="hint">Add a row to <code>docs/decisions/register.md</code> when a decision needs an owner and a deadline.</span>
+       </div>`;
+        return `
+    <div class="tile decisions" id="tile-decisions">
+      <h2>
+        <span class="accent-bar"></span>
+        Open decisions
+        <span class="count">${open.length}</span>
+        <div class="tile-actions">
+          ${
+            vscodeLink(PATHS.decisions)
+              ? `<a href="${esc(vscodeLink(PATHS.decisions))}"><button>edit</button></a>`
+              : ""
+          }
+        </div>
+      </h2>
+      ${rows}
+    </div>`;
+      }
+
+      function renderIdeasTile(model) {
+        const top = model.ideas.slice(0, 6);
+        const today = new Date().toISOString().slice(0, 10);
+        const rows = top.length
+          ? top
+              .map((idea) => {
+                const ready = idea.earliest && idea.earliest <= today;
+                return `
+        <div class="row" title="${esc((idea.problem || "").slice(0, 200))}">
+          <span class="num">${esc(idea.slug.slice(0, 14))}</span>
+          <span class="label">${esc(idea.name)}</span>
+          <span class="meta">
+            ${idea.parked ? `<span>parked ${esc(idea.parked)}</span>` : ""}
+            ${ready ? `<span style="color:var(--ok)">ready to promote</span>` : ""}
+          </span>
+          ${renderRowActions(idea.file)}
+        </div>`;
+              })
+              .join("")
+          : `<div class="empty">No parked ideas.
+         <span class="hint">Park speculation in <code>docs/ideas/</code> instead of code. Two-week wait, then promote to RFC or delete.</span>
+       </div>`;
+        return `
+    <div class="tile ideas" id="tile-ideas">
+      <h2>
+        <span class="accent-bar"></span>
+        Idea parking lot
+        <span class="count">${model.ideas.length}</span>
+        <div class="tile-actions">
+          <button onclick="newArtifact('idea')">+ Park idea</button>
+        </div>
+      </h2>
+      ${rows}
+    </div>`;
+      }
+
+      function renderComplianceTile(model) {
+        if (!model.review) {
+          return `
+      <div class="tile compliance" id="tile-compliance">
+        <h2><span class="accent-bar"></span>Charter compliance</h2>
+        <div class="empty">No personal reviews yet.
+          <span class="hint">First weekly review lands in <code>docs/personal/reviews/</code>. Schedule via the review agent.</span>
+        </div>
+      </div>`;
+        }
+        const s = model.review.compliance_score;
+        if (s == null) {
+          return `
+      <div class="tile compliance" id="tile-compliance">
+        <h2>
+          <span class="accent-bar"></span>Charter compliance
+          <div class="tile-actions">
+            ${vscodeLink(model.review.file) ? `<a href="${esc(vscodeLink(model.review.file))}"><button>review</button></a>` : ""}
+          </div>
+        </h2>
+        <div class="compliance-meter">
+          <div class="score" style="color: var(--fg-dim); font-size: 28px;">not scored</div>
+          <div class="review-date">Latest: ${esc(model.review.date || model.review.filename)}</div>
+          <div class="label" style="margin-top: 8px; text-align: center; max-width: 280px;">
+            Add <code>compliance_score: 0.0–1.0</code> to the review's frontmatter to populate this.
+          </div>
+        </div>
+      </div>`;
+        }
+        const pct = Math.round(s * 100);
+        const cls = s >= 0.8 ? "" : s >= 0.6 ? "warn" : "danger";
+        return `
+    <div class="tile compliance" id="tile-compliance">
+      <h2>
+        <span class="accent-bar"></span>Charter compliance
+        <div class="tile-actions">
+          ${vscodeLink(model.review.file) ? `<a href="${esc(vscodeLink(model.review.file))}"><button>review</button></a>` : ""}
+        </div>
+      </h2>
+      <div class="compliance-meter">
+        <div class="score ${cls}">${pct}%</div>
+        <div class="label">Latest week</div>
+        <div class="review-date">${esc(model.review.date || model.review.filename)}</div>
+      </div>
+    </div>`;
+      }
+
+      function renderReviewTile(model) {
+        if (!model.review) {
+          return `
+      <div class="tile review" id="tile-review">
+        <h2><span class="accent-bar"></span>Latest personal review</h2>
+        <div class="empty">No reviews yet.
+          <span class="hint">Weekly review runs Sunday 18:00 and lands at <code>docs/personal/reviews/YYYY-WW.md</code>.</span>
+        </div>
+      </div>`;
+        }
+        const r = model.review;
+        return `
+    <div class="tile review" id="tile-review">
+      <h2>
+        <span class="accent-bar"></span>
+        Latest personal review
+        <span class="count">${esc(r.week || r.filename)}</span>
+        <div class="tile-actions">
+          ${vscodeLink(r.file) ? `<a href="${esc(vscodeLink(r.file))}"><button>open</button></a>` : ""}
+        </div>
+      </h2>
+      ${r.working ? `<div style="margin-top:4px"><strong style="color:var(--ok); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">What's working</strong><div style="color:var(--fg-muted); font-size:12px; margin-top:4px;">${esc(r.working.slice(0, 220))}${r.working.length > 220 ? "…" : ""}</div></div>` : ""}
+      ${r.regressing ? `<div style="margin-top:8px"><strong style="color:var(--warn); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">What's regressing</strong><div style="color:var(--fg-muted); font-size:12px; margin-top:4px;">${esc(r.regressing.slice(0, 220))}${r.regressing.length > 220 ? "…" : ""}</div></div>` : ""}
+    </div>`;
+      }
+
+      function renderWarningsTile(model) {
+        if (model.warnings.length === 0) return "";
+        return `
+    <div class="tile warnings" id="tile-warnings">
+      <h2>
+        <span class="accent-bar"></span>
+        Parser warnings
+        <span class="count">${model.warnings.length}</span>
+      </h2>
+      ${model.warnings
+        .slice(0, 8)
+        .map(
+          (w) => `
+        <div class="row">
+          <span class="num" style="color:var(--warn)">⚠</span>
+          <span class="label" style="font-family: ui-monospace, monospace; font-size: 11px;">${esc(w.file)}</span>
+          <span class="meta">${esc(w.msg)}</span>
+        </div>`,
+        )
+        .join("")}
+    </div>`;
+      }
+
+      // ============================================================================
+      // Graph
+      // ============================================================================
+
+      function buildGraphSpec(model) {
+        const nodes = [];
+        const edges = [];
+        const seenEdge = new Set();
+        const nodeIds = new Set();
+
+        function addNode(id, label, cls) {
+          if (nodeIds.has(id)) return;
+          nodeIds.add(id);
+          const safeLabel = label.replace(/"/g, "'").replace(/\n/g, " ");
+          nodes.push(`  ${id}["${safeLabel}"]:::${cls}`);
+        }
+        function addEdge(a, b) {
+          const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+          if (seenEdge.has(key)) return;
+          seenEdge.add(key);
+          edges.push(`  ${a} --> ${b}`);
+        }
+
+        for (const r of model.rfcs) {
+          const id = `RFC${pad4(r.num)}`;
+          addNode(id, `RFC ${pad4(r.num)}<br/>${r.title}`, "rfc");
+          for (const adrNum of r.linked_adrs) {
+            const target = `ADR${pad4(adrNum)}`;
+            const adr = model.adrs.find((a) => a.num === adrNum);
+            addNode(
+              target,
+              adr
+                ? `ADR ${pad4(adr.num)}<br/>${adr.title}`
+                : `ADR ${pad4(adrNum)}<br/>(missing)`,
+              "adr",
+            );
+            if (!adr)
+              model.warnings.push({
+                file: r.file,
+                msg: `linked_adrs references missing ADR ${adrNum}`,
+              });
+            addEdge(id, target);
+          }
+          for (const ideaSlug of r.linked_ideas) {
+            const target = `idea_${ideaSlug.replace(/[^A-Za-z0-9]/g, "_")}`;
+            const idea = model.ideas.find((i) => i.slug === ideaSlug);
+            addNode(
+              target,
+              idea ? `Idea: ${idea.name}` : `Idea: ${ideaSlug}<br/>(missing)`,
+              "idea",
+            );
+            if (!idea)
+              model.warnings.push({
+                file: r.file,
+                msg: `linked_ideas references missing idea ${ideaSlug}`,
+              });
+            addEdge(target, id);
+          }
+        }
+
+        for (const a of model.adrs) {
+          const id = `ADR${pad4(a.num)}`;
+          addNode(id, `ADR ${pad4(a.num)}<br/>${a.title}`, "adr");
+          for (const rfcNum of a.linked_rfcs) {
+            const target = `RFC${pad4(rfcNum)}`;
+            if (!model.rfcs.find((r) => r.num === rfcNum)) {
+              addNode(target, `RFC ${pad4(rfcNum)}<br/>(missing)`, "rfc");
+              model.warnings.push({
+                file: a.file,
+                msg: `linked_rfcs references missing RFC ${rfcNum}`,
+              });
+            }
+            addEdge(target, id);
+          }
+        }
+
+        // Decision register: "Recently closed" rows whose Outcome cell mentions an ADR.
+        for (const row of model.decisions.closed || []) {
+          const outcome = row["Outcome (ADR)"] || row["Outcome"] || "";
+          const m = outcome.match(/ADR\s*(\d{1,4})/i);
+          if (!m) continue;
+          const adrNum = Number(m[1]);
+          const decisionLabel = row["Decision"] || "#" + row["#"];
+          const decisionId = `dec_${(row["#"] || decisionLabel).toString().replace(/[^A-Za-z0-9]/g, "_")}`;
+          addNode(
+            decisionId,
+            `Decision: ${decisionLabel.slice(0, 40)}`,
+            "decision",
+          );
+          const target = `ADR${pad4(adrNum)}`;
+          if (!model.adrs.find((a) => a.num === adrNum)) {
+            addNode(target, `ADR ${pad4(adrNum)}<br/>(missing)`, "adr");
+          }
+          addEdge(decisionId, target);
+        }
+
+        if (nodes.length === 0) return null;
+
+        return [
+          "graph LR",
+          ...nodes,
+          ...edges,
+          "  classDef rfc fill:#1e3a5f,stroke:#58a6ff,color:#e6edf3",
+          "  classDef adr fill:#3a1e5f,stroke:#d2a8ff,color:#e6edf3",
+          "  classDef idea fill:#1e3a1e,stroke:#7ee787,color:#e6edf3",
+          "  classDef decision fill:#5f3a1e,stroke:#ffa657,color:#e6edf3",
+        ].join("\n");
+      }
+
+      async function renderGraph(model) {
+        const section = document.getElementById("graph-section");
+        const container = document.getElementById("graph-container");
+        const spec = buildGraphSpec(model);
+
+        if (!spec) {
+          section.style.display = "block";
+          container.innerHTML = `<div class="graph-empty">No cross-references yet. Add <code>linked_adrs</code> / <code>linked_rfcs</code> / <code>linked_ideas</code> frontmatter to populate this graph.</div>`;
+          return;
+        }
+
+        section.style.display = "block";
+
+        if (window.__mermaidFailed || typeof mermaid === "undefined") {
+          // Fallback: print the edges as text.
+          const fallback = spec
+            .split("\n")
+            .filter((l) => l.includes("-->"))
+            .join("\n");
+          container.innerHTML = `<div class="graph-fallback">Mermaid unavailable — edge list:\n\n${esc(fallback)}</div>`;
+          return;
+        }
+
+        try {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: "dark",
+            themeVariables: {
+              background: "#0d1117",
+              primaryColor: "#1e3a5f",
+              primaryTextColor: "#e6edf3",
+              primaryBorderColor: "#58a6ff",
+              lineColor: "#8b949e",
+              secondaryColor: "#3a1e5f",
+              tertiaryColor: "#1e3a1e",
+            },
+            flowchart: { curve: "basis", padding: 12 },
+          });
+          const { svg } = await mermaid.render("dashboard-graph", spec);
+          container.innerHTML = svg;
+        } catch (e) {
+          console.error("[dashboard] mermaid render failed:", e);
+          const fallback = spec
+            .split("\n")
+            .filter((l) => l.includes("-->"))
+            .join("\n");
+          container.innerHTML = `<div class="graph-fallback">Mermaid failed: ${esc(e.message)}\n\nEdges:\n${esc(fallback)}</div>`;
+        }
+      }
+
+      // ============================================================================
+      // Write affordance entry point
+      // ============================================================================
+
+      window.newArtifact = function (kind) {
+        const tmpl = templateFor(kind, currentModel);
+        if (!tmpl) return;
+        const dirHint =
+          kind === "rfc"
+            ? "docs/rfc/"
+            : kind === "adr"
+              ? "docs/adr/"
+              : "docs/ideas/";
+        copyToClipboard(
+          tmpl.contents,
+          `<strong>${kind.toUpperCase()} template copied</strong>Paste into <code>${dirHint}${tmpl.filename}</code>`,
+        );
+      };
+
+      // ============================================================================
+      // Main
+      // ============================================================================
+
+      let currentModel = null;
+
+      function emptyModel() {
+        return {
+          charter: {},
+          phase: null,
+          rfcs: [],
+          adrs: [],
+          decisions: { open: [], closed: [] },
+          ideas: [],
+          review: null,
+          warnings: [],
+          offlineMode: false,
+        };
+      }
+
+      async function buildModel() {
+        const model = emptyModel();
+        const state = { manifest: null, manifestTried: false };
+
+        // Detect inlined data (offline mode).
+        const inlinedEl = document.getElementById("inlined-data");
+        const inlinedText = inlinedEl ? inlinedEl.textContent.trim() : "";
+        if (inlinedText && inlinedText !== "__INLINED_DATA__") {
+          try {
+            const data = JSON.parse(inlinedText);
+            Object.assign(model, data);
+            model.offlineMode = true;
+            return model;
+          } catch (e) {
+            console.warn("[dashboard] inlined data invalid:", e);
+          }
+        }
+
+        // Live mode — parallelize independent loads.
+        await Promise.all([
+          loadCharter(model),
+          loadPhase(model),
+          loadDecisions(model),
+          loadRFCs(model, state),
+          loadADRs(model, state),
+          loadIdeas(model, state),
+          loadLatestReview(model, state),
+        ]);
+
+        return model;
+      }
+
+      function renderAll(model) {
+        renderBanner(model);
+        renderHeader(model);
+        renderPhase(model);
+        const grid = document.getElementById("grid-host");
+        grid.innerHTML = [
+          renderRFCsTile(model),
+          renderComplianceTile(model),
+          renderDecisionsTile(model),
+          renderIdeasTile(model),
+          renderADRsTile(model),
+          renderReviewTile(model),
+          renderWarningsTile(model),
+        ].join("");
+      }
+
+      (async function main() {
+        try {
+          currentModel = await buildModel();
+          renderAll(currentModel);
+          await renderGraph(currentModel);
+          if (currentModel.warnings.length > 0) {
+            console.warn("[dashboard] parser warnings:", currentModel.warnings);
+          }
+        } catch (e) {
+          console.error("[dashboard] fatal:", e);
+          document.querySelector("main").innerHTML = `
+      <div class="banner" style="border-color: var(--danger);">
+        <strong>Dashboard failed to load.</strong>
+        ${esc(e.message)}<br>
+        Check the browser console.
+      </div>`;
+        }
+      })();
+    </script>
+  </body>
+</html>

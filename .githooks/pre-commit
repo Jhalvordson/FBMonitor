@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Pre-commit hook: keep the dashboard snapshot in sync with reality.
+
+Runs scripts/build-dashboard.py whenever any of the files the dashboard
+reads have changed in this commit. Re-stages the regenerated outputs
+(docs/.dashboard-manifest.json and docs/dashboard.offline.html) so the
+commit always reflects current state.
+
+Skipped silently when there are no dashboard-relevant changes (e.g. when
+you're only editing the build script itself, README, or unrelated files).
+
+Bypass with `git commit --no-verify` — but the charter says don't.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+
+# Files / directories whose changes invalidate the dashboard snapshot.
+WATCHED_PREFIXES = (
+    "docs/engineering-charter.md",
+    "docs/phase.md",
+    "docs/rfc/",
+    "docs/adr/",
+    "docs/decisions/",
+    "docs/ideas/",
+    "docs/personal/reviews/",
+    "docs/dashboard.html",
+    "docs/vendor/mermaid.min.js",
+    "scripts/build-dashboard.py",
+)
+
+REGEN_OUTPUTS = (
+    "docs/.dashboard-manifest.json",
+    "docs/dashboard.offline.html",
+)
+
+
+def staged_files() -> list[str]:
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def main() -> int:
+    repo = Path(__file__).resolve().parent.parent
+    files = staged_files()
+
+    if not any(f.startswith(WATCHED_PREFIXES) for f in files):
+        return 0  # nothing dashboard-relevant — skip silently
+
+    # Skip if the regen outputs are the only thing changing (avoid infinite loops).
+    relevant = [f for f in files if f not in REGEN_OUTPUTS]
+    if not relevant:
+        return 0
+
+    print("[pre-commit] dashboard inputs changed — rebuilding…")
+    build_script = repo / "scripts" / "build-dashboard.py"
+    if not build_script.is_file():
+        print(f"[pre-commit] {build_script} not found; skipping", file=sys.stderr)
+        return 0
+
+    result = subprocess.run(
+        [sys.executable, str(build_script)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    print(result.stdout, end="")
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        print(
+            "[pre-commit] build-dashboard.py failed — aborting commit", file=sys.stderr
+        )
+        return result.returncode
+
+    # Stage the regenerated outputs so they're part of the in-flight commit.
+    to_add = [str(repo / out) for out in REGEN_OUTPUTS if (repo / out).is_file()]
+    if to_add:
+        subprocess.run(["git", "add", *to_add], cwd=repo, check=True)
+        print(f"[pre-commit] re-staged: {', '.join(REGEN_OUTPUTS)}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

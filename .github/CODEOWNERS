@@ -1,0 +1,32 @@
+# CODEOWNERS — who must review changes to which paths.
+#
+# Even solo, this is useful: it documents ownership boundaries and acts as
+# a forcing function when collaborators arrive.
+#
+# Syntax: <pattern> <owner> [<owner> ...]
+# Owners are GitHub usernames or team names.
+# Later patterns override earlier ones — most-specific rule wins.
+
+# Default owner — applies to anything not matched below
+*                                   @{{GITHUB_USER}}
+
+# Engineering charter and ADRs — review more carefully
+docs/engineering-charter.md         @{{GITHUB_USER}}
+docs/charter-CHANGELOG.md           @{{GITHUB_USER}}
+docs/adr/                           @{{GITHUB_USER}}
+
+# Personal docs — only the maintainer
+docs/personal/                      @{{GITHUB_USER}}
+
+# Schema migrations — high-risk, careful review
+shared/migrations/                  @{{GITHUB_USER}}
+
+# CI / build / security configs
+.github/                            @{{GITHUB_USER}}
+.pre-commit-config.yaml             @{{GITHUB_USER}}
+.gitleaks.toml                      @{{GITHUB_USER}}
+
+# Per-app owners (uncomment and adjust as the project grows)
+# apps/web-ops/                       @{{GITHUB_USER}}
+# apps/web-sales/                     @{{GITHUB_USER}}
+# apps/opsync-manager/                @{{GITHUB_USER}}

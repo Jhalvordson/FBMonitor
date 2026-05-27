@@ -1,0 +1,70 @@
+name: CI
+
+# Quoted "on" key — YAML 1.1 treats unquoted `on` as boolean true, which some
+# parsers reject at workflow-load time.
+"on":
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel previous runs on the same PR/branch when a new commit lands
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs full history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          # `cache: pip` requires a pyproject.toml / requirements.txt in the
+          # repo. Re-enable once a manifest exists.
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit on all files
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            docs
+            chore
+            test
+            perf
+            style
+            build
+            ci
+            revert
+
+# Future jobs to add when the relevant manifests land:
+# - python-tests / python-security: add when pyproject.toml or requirements.txt exists
+# - node-tests / node-security:     add when package.json exists
+# - required (aggregator + branch protection): add when branch protection is configured on main
+# Each lived previously as a conditional `if: hashFiles(...) != ''` job; conditional
+# jobs that probe for files at workflow-load time can trip structural validation on
+# private repos with default policies. Add them back as real jobs when the tech is real.

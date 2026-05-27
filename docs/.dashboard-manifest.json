@@ -1,0 +1,7 @@
+{
+  "rfc/": ["0001-dashboard.md"],
+  "adr/": ["0001-record-architecture-decisions.md", "0002-vendor-mermaid.md"],
+  "ideas/": [],
+  "personal/reviews/": [],
+  "_generated_at": "2026-05-12T00:13:28Z"
+}

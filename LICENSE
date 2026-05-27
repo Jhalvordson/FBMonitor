@@ -1,0 +1,11 @@
+Copyright (c) {{YEAR}} {{COPYRIGHT_HOLDER}}
+
+All rights reserved.
+
+This software and associated documentation files (the "Software") are proprietary to {{COPYRIGHT_HOLDER}} and may not be copied, modified, distributed, sublicensed, or used in any form without express written permission.
+
+For licensing inquiries, contact {{CONTACT_EMAIL}}.
+
+---
+
+NOTE: This is a default proprietary license suitable for internal-use software where IP protection matters. If this project is intended to be open-source, replace this entire file with the appropriate license text (MIT, Apache 2.0, etc.) and update the README to match.

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FBMonitor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup-container">
+      <header class="popup-header">
+        <h1>FBMonitor</h1>
+        <span id="match-count" class="match-count" title="Matches today"
+          >0</span
+        >
+      </header>
+
+      <section class="section">
+        <h2>Keywords</h2>
+        <div class="keyword-input-row">
+          <input
+            type="text"
+            id="keyword-input"
+            placeholder="Add keyword..."
+            autocomplete="off"
+          />
+          <button id="add-keyword-btn" class="btn btn-primary">Add</button>
+        </div>
+        <div id="keyword-list" class="keyword-list"></div>
+      </section>
+
+      <section class="section">
+        <h2>Toggles</h2>
+        <label class="toggle-row">
+          <input type="checkbox" id="highlight-toggle" checked />
+          <span>Highlight matches</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="webhook-toggle" />
+          <span>Send webhooks</span>
+        </label>
+      </section>
+
+      <section class="section">
+        <h2>Match Queue</h2>
+        <div id="match-queue" class="match-queue">
+          <p class="empty-state">No matches yet. Start scrolling a group!</p>
+        </div>
+        <button id="clear-matches-btn" class="btn btn-secondary btn-sm">
+          Clear
+        </button>
+      </section>
+
+      <footer class="popup-footer">
+        <button id="options-btn" class="btn btn-link">Advanced Settings</button>
+      </footer>
+    </div>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

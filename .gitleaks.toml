@@ -1,0 +1,31 @@
+# Gitleaks configuration
+# Extends the default gitleaks ruleset with project-specific allowlist and rules.
+# Charter Section 4: secrets never in version control.
+
+title = "{{PROJECT_NAME}} gitleaks config"
+
+# Inherit gitleaks defaults
+[extend]
+useDefault = true
+
+# Allowlist — paths and patterns that are safe to commit
+[allowlist]
+description = "Files and patterns we explicitly allow"
+paths = [
+  '''docs/secrets-inventory\.md$''',  # metadata only, no values
+  '''\.env\.example$''',              # placeholder values only
+  '''docs/runbooks/.*\.md$''',        # may reference key names, not values
+]
+regexes = [
+  # Placeholder values used in examples / templates
+  '''(?i)your[-_]?(api[-_]?key|secret|token)[-_]?here''',
+  '''(?i)example[-_]?(key|secret|token)''',
+  '''(?i)<your[-_]?(key|secret|token)>''',
+  '''(?i)\{\{[A-Z_]+\}\}''',  # Mustache-style placeholders
+]
+
+# Project-specific rules can be added here as discovered
+# [[rules]]
+# id = "project-specific-id"
+# description = "..."
+# regex = '''...'''
