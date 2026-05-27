@@ -255,6 +255,23 @@ body {
   background: #1557b0;
 }
 
+.btn-full {
+  width: 100%;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.match-summary {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.unreplied-text {
+  font-size: 13px;
+  color: #ff6600;
+  font-weight: 600;
+}
+
 .popup-footer {
   padding-top: 8px;
   border-top: 1px solid #2a2a4a;

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FBMonitor — Match Queue</title>
+    <link rel="stylesheet" href="matches.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="header-left">
+          <h1>FBMonitor</h1>
+          <span class="subtitle">Match Queue</span>
+        </div>
+        <div class="header-right">
+          <div class="stats">
+            <span id="total-count" class="stat">0 matches</span>
+            <span class="stat-sep">|</span>
+            <span id="unreplied-count" class="stat unreplied">0 unreplied</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Search matches..."
+            autocomplete="off"
+          />
+        </div>
+        <div class="filters">
+          <select id="filter-status">
+            <option value="all">All</option>
+            <option value="unreplied">Unreplied</option>
+            <option value="replied">Replied</option>
+          </select>
+          <select id="filter-keyword">
+            <option value="all">All keywords</option>
+          </select>
+          <button id="collapse-all-btn" class="btn btn-sm">Collapse All</button>
+          <button id="expand-all-btn" class="btn btn-sm">Expand All</button>
+        </div>
+      </div>
+
+      <div id="match-groups" class="match-groups"></div>
+
+      <div id="empty-state" class="empty-state" style="display: none">
+        <p>No matches found.</p>
+        <p class="help">
+          Scroll through your Facebook groups to find keyword matches.
+        </p>
+      </div>
+    </div>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/storage.js"></script>
+    <script src="matches.js"></script>
+  </body>
+</html>
