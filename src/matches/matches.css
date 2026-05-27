@@ -227,6 +227,12 @@ body {
   font-weight: 600;
 }
 
+.group-replied-count {
+  font-size: 11px;
+  color: #66cc66;
+  font-weight: 600;
+}
+
 .group-toggle {
   font-size: 12px;
   color: #666;
@@ -298,6 +304,31 @@ body {
 .match-time {
   font-size: 11px;
   color: #666;
+}
+
+.replied-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #66cc66;
+  background: rgba(102, 204, 102, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.unreplied-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ff6600;
+  background: rgba(255, 102, 0, 0.12);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.search-highlight {
+  background: rgba(255, 200, 0, 0.35);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .match-kw-tag {

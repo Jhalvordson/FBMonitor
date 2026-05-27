@@ -5,14 +5,14 @@ document.addEventListener("DOMContentLoaded", async function () {
   var searchInput = document.getElementById("search-input");
   var filterStatus = document.getElementById("filter-status");
   var filterKeyword = document.getElementById("filter-keyword");
+  var filterGroup = document.getElementById("filter-group");
   var collapseAllBtn = document.getElementById("collapse-all-btn");
   var expandAllBtn = document.getElementById("expand-all-btn");
+  var clearAllBtn = document.getElementById("clear-all-btn");
   var matchGroupsEl = document.getElementById("match-groups");
   var emptyState = document.getElementById("empty-state");
   var totalCountEl = document.getElementById("total-count");
   var unrepliedCountEl = document.getElementById("unreplied-count");
-
-  var clearAllBtn = document.getElementById("clear-all-btn");
 
   var allMatches = [];
   var repliedSet = {};
@@ -31,10 +31,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     render();
   });
 
-  // Event listeners
   searchInput.addEventListener("input", render);
   filterStatus.addEventListener("change", render);
   filterKeyword.addEventListener("change", render);
+  filterGroup.addEventListener("change", render);
 
   collapseAllBtn.addEventListener("click", function () {
     document.querySelectorAll(".group-card").forEach(function (card) {
@@ -48,7 +48,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   });
 
-  // Reload data every 5 seconds to pick up new matches
   setInterval(async function () {
     await loadData();
     render();
@@ -59,9 +58,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     repliedSet = await getRepliedSet();
     templates = await FBM_Storage.getReplyTemplates();
 
-    // Populate keyword filter
+    // Populate keyword filter (preserve selection)
     var keywords = await FBM_Storage.getKeywords();
-    var currentValue = filterKeyword.value;
+    var currentKw = filterKeyword.value;
     filterKeyword.innerHTML = '<option value="all">All keywords</option>';
     keywords.forEach(function (kw) {
       var opt = document.createElement("option");
@@ -69,15 +68,33 @@ document.addEventListener("DOMContentLoaded", async function () {
       opt.textContent = kw;
       filterKeyword.appendChild(opt);
     });
-    filterKeyword.value = currentValue;
+    filterKeyword.value = currentKw;
+
+    // Populate group filter (preserve selection)
+    var groupNames = {};
+    allMatches.forEach(function (m) {
+      var g = m.groupName || "Unknown Group";
+      groupNames[g] = true;
+    });
+    var currentGroup = filterGroup.value;
+    filterGroup.innerHTML = '<option value="all">All groups</option>';
+    Object.keys(groupNames)
+      .sort()
+      .forEach(function (g) {
+        var opt = document.createElement("option");
+        opt.value = g;
+        opt.textContent = g;
+        filterGroup.appendChild(opt);
+      });
+    filterGroup.value = currentGroup;
   }
 
   function render() {
     var searchTerm = searchInput.value.toLowerCase().trim();
     var statusFilter = filterStatus.value;
     var keywordFilter = filterKeyword.value;
+    var groupFilter = filterGroup.value;
 
-    // Filter matches
     var filtered = allMatches.filter(function (m) {
       var id = matchId(m);
       var isReplied = !!repliedSet[id];
@@ -90,6 +107,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         !(m.matchedKeywords || []).includes(keywordFilter)
       )
         return false;
+
+      var gname = m.groupName || "Unknown Group";
+      if (groupFilter !== "all" && gname !== groupFilter) return false;
 
       if (searchTerm) {
         var haystack = [
@@ -106,7 +126,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       return true;
     });
 
-    // Update stats
+    // Stats
     var totalReplied = allMatches.filter(function (m) {
       return repliedSet[matchId(m)];
     }).length;
@@ -122,7 +142,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       groups[gname].push(m);
     });
 
-    // Sort groups by most recent match
     var groupNames = Object.keys(groups).sort(function (a, b) {
       var aTime = groups[a][0] ? groups[a][0].timestamp : 0;
       var bTime = groups[b][0] ? groups[b][0].timestamp : 0;
@@ -142,11 +161,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       var unreplied = matches.filter(function (m) {
         return !repliedSet[matchId(m)];
       }).length;
+      var replied = matches.length - unreplied;
 
       var card = document.createElement("div");
       card.className = "group-card";
 
-      // Group header
       var header = document.createElement("div");
       header.className = "group-header";
       header.innerHTML =
@@ -160,6 +179,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         (unreplied > 0
           ? '<span class="group-unreplied">' + unreplied + " unreplied</span>"
           : "") +
+        (replied > 0
+          ? '<span class="group-replied-count">' + replied + " replied</span>"
+          : "") +
         "</div>" +
         '<span class="group-toggle">&#9660;</span>';
 
@@ -167,7 +189,6 @@ document.addEventListener("DOMContentLoaded", async function () {
         card.classList.toggle("collapsed");
       });
 
-      // Match list
       var matchList = document.createElement("div");
       matchList.className = "group-matches";
 
@@ -185,6 +206,15 @@ document.addEventListener("DOMContentLoaded", async function () {
           if (!firstTemplate && templates[kw]) firstTemplate = templates[kw];
         });
 
+        var statusLabel = isReplied
+          ? '<span class="replied-label">Replied</span>'
+          : '<span class="unreplied-label">Needs reply</span>';
+
+        var postText = escapeHtml(m.postText || "");
+        if (searchTerm) {
+          postText = highlightSearch(postText, searchTerm);
+        }
+
         var row = document.createElement("div");
         row.className = "match-row" + (isReplied ? " replied" : "");
         row.innerHTML =
@@ -194,13 +224,14 @@ document.addEventListener("DOMContentLoaded", async function () {
           '<span class="match-author">' +
           escapeHtml(m.authorName || "Unknown") +
           "</span>" +
+          statusLabel +
           kwTags +
           '<span class="match-time">' +
           formatTime(m.timestamp) +
           "</span>" +
           "</div>" +
           '<div class="match-text">' +
-          escapeHtml(m.postText || "") +
+          postText +
           "</div>" +
           '<div class="match-actions">' +
           '<button class="btn btn-sm open-post" data-url="' +
@@ -216,7 +247,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           ' toggle-replied" data-id="' +
           escapeHtml(id) +
           '">' +
-          (isReplied ? "Replied" : "Mark Replied") +
+          (isReplied ? "Undo Reply" : "Mark Replied") +
           "</button>" +
           "</div>" +
           "</div>";
@@ -229,7 +260,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       matchGroupsEl.appendChild(card);
     });
 
-    // Event delegation for actions
+    // Event delegation
     matchGroupsEl.onclick = async function (e) {
       var openBtn = e.target.closest(".open-post");
       if (openBtn) {
@@ -264,6 +295,15 @@ document.addEventListener("DOMContentLoaded", async function () {
         return;
       }
     };
+  }
+
+  function highlightSearch(text, term) {
+    if (!term) return text;
+    var regex = new RegExp(
+      "(" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")",
+      "gi",
+    );
+    return text.replace(regex, '<mark class="search-highlight">$1</mark>');
   }
 
   function matchId(m) {
