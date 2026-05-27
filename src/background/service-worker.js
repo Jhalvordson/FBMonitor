@@ -54,8 +54,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// In-memory match counter for instant badge updates
+let todayMatchCount = -1;
+
 async function handleKeywordMatch(payload) {
-  // Hash on post text + keywords (not URL, which can be unreliable)
   const textSnippet = (payload.postText || "").substring(0, 100);
   const hash = simpleHash(textSnippet + payload.matchedKeywords.join(","));
 
@@ -67,10 +69,18 @@ async function handleKeywordMatch(payload) {
     return;
   }
 
-  // Mark as sent immediately to prevent duplicate history entries
-  await markHashSent(hash);
-  await addMatch(payload);
-  await updateBadge();
+  // Update badge instantly from memory before doing storage writes
+  if (todayMatchCount < 0) {
+    todayMatchCount = await getTodayCount();
+  }
+  todayMatchCount++;
+  chrome.action.setBadgeText({
+    text: todayMatchCount > 0 ? String(todayMatchCount) : "",
+  });
+  chrome.action.setBadgeBackgroundColor({ color: "#ff6600" });
+
+  // Then persist to storage (non-blocking for badge)
+  await Promise.all([markHashSent(hash), addMatch(payload)]);
 
   const webhookEnabled = await getWebhookEnabled();
   if (!webhookEnabled) return;
@@ -123,17 +133,19 @@ async function flushPendingQueue() {
 }
 
 async function updateBadge() {
+  const count = await getTodayCount();
+  todayMatchCount = count;
+  chrome.action.setBadgeText({
+    text: count > 0 ? String(count) : "",
+  });
+  chrome.action.setBadgeBackgroundColor({ color: "#ff6600" });
+}
+
+async function getTodayCount() {
   const history = await getMatchHistory();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const todayCount = history.filter(
-    (m) => m.timestamp >= todayStart.getTime(),
-  ).length;
-
-  chrome.action.setBadgeText({
-    text: todayCount > 0 ? String(todayCount) : "",
-  });
-  chrome.action.setBadgeBackgroundColor({ color: "#ff6600" });
+  return history.filter((m) => m.timestamp >= todayStart.getTime()).length;
 }
 
 // Storage helpers (service worker can't use window.FBM_Storage)
