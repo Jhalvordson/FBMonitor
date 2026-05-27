@@ -3,32 +3,41 @@
 // highlights matching posts, and notifies the service worker.
 
 (function () {
-  let feedObserver = null;
-  let currentFeed = null;
-  let scanTimeout = null;
-  const SCAN_DEBOUNCE_MS = 150;
-  const FEED_CHECK_INTERVAL_MS = 5000;
+  console.log("[FBMonitor] Content script loaded on", location.href);
+
+  var feedObserver = null;
+  var currentFeed = null;
+  var scanTimeout = null;
+  var SCAN_DEBOUNCE_MS = 150;
+  var FEED_CHECK_INTERVAL_MS = 5000;
+  var PERIODIC_SCAN_MS = 3000;
 
   async function init() {
-    const feed = await waitForFeed();
-    if (!feed) return;
+    console.log("[FBMonitor] Waiting for feed container...");
+    var feed = await waitForFeed();
+    if (!feed) {
+      console.warn("[FBMonitor] Feed container not found within timeout.");
+      return;
+    }
+    console.log("[FBMonitor] Feed found, starting observer.");
     observeFeed(feed);
     scanExistingPosts(feed);
     startNavigationWatcher();
+    startPeriodicScan();
   }
 
   function waitForFeed() {
-    return new Promise((resolve) => {
-      const feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
+    return new Promise(function (resolve) {
+      var feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
       if (feed) return resolve(feed);
 
-      const timeout = setTimeout(() => {
+      var timeout = setTimeout(function () {
         bodyObs.disconnect();
         resolve(null);
-      }, 15000);
+      }, 30000);
 
-      const bodyObs = new MutationObserver(() => {
-        const feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
+      var bodyObs = new MutationObserver(function () {
+        var feed = document.querySelector(FBM_SELECTORS.FEED_CONTAINER);
         if (feed) {
           clearTimeout(timeout);
           bodyObs.disconnect();
@@ -43,105 +52,158 @@
     if (feedObserver) feedObserver.disconnect();
     currentFeed = feed;
 
-    feedObserver = new MutationObserver(() => {
+    feedObserver = new MutationObserver(function () {
       if (scanTimeout) clearTimeout(scanTimeout);
-      scanTimeout = setTimeout(() => scanNewPosts(feed), SCAN_DEBOUNCE_MS);
+      scanTimeout = setTimeout(function () {
+        scanNewPosts(feed);
+      }, SCAN_DEBOUNCE_MS);
     });
 
     feedObserver.observe(feed, { childList: true, subtree: true });
   }
 
   function scanExistingPosts(feed) {
-    const articles = feed.querySelectorAll(FBM_SELECTORS.POST_ARTICLE);
-    articles.forEach((article) => scanPost(article));
+    var articles = feed.querySelectorAll(FBM_SELECTORS.POST_ARTICLE);
+    console.log("[FBMonitor] Scanning", articles.length, "existing posts");
+    articles.forEach(function (article) {
+      scanPost(article);
+    });
   }
 
   function scanNewPosts(feed) {
-    const articles = feed.querySelectorAll(
-      `${FBM_SELECTORS.POST_ARTICLE}:not([${FBM_SELECTORS.PROCESSED_ATTR}])`,
+    var articles = feed.querySelectorAll(
+      FBM_SELECTORS.POST_ARTICLE +
+        ":not([" +
+        FBM_SELECTORS.PROCESSED_ATTR +
+        "])",
     );
-    articles.forEach((article) => scanPost(article));
+    if (articles.length > 0) {
+      console.log("[FBMonitor] Scanning", articles.length, "new posts");
+    }
+    articles.forEach(function (article) {
+      scanPost(article);
+    });
   }
 
   async function scanPost(articleEl) {
     if (articleEl.hasAttribute(FBM_SELECTORS.PROCESSED_ATTR)) return;
     articleEl.setAttribute(FBM_SELECTORS.PROCESSED_ATTR, "true");
 
-    const keywords = await FBM_Storage.getKeywords();
+    var keywords;
+    try {
+      keywords = await FBM_Storage.getKeywords();
+    } catch (e) {
+      console.error("[FBMonitor] Failed to get keywords:", e);
+      return;
+    }
+
     if (!keywords.length) return;
 
-    const highlightEnabled = await FBM_Storage.getHighlightEnabled();
-    const text = extractPostText(articleEl);
+    var highlightEnabled = await FBM_Storage.getHighlightEnabled();
+    var text = extractPostText(articleEl);
     if (!text.trim()) return;
 
-    const matched = matchKeywords(text, keywords);
+    var matched = matchKeywords(text, keywords);
     if (matched.length === 0) return;
+
+    console.log("[FBMonitor] Match found:", matched, "in:", text.substring(0, 80));
 
     if (highlightEnabled) {
       highlightPost(articleEl, matched);
       injectCopyReplyButton(articleEl, matched);
     }
 
-    const matchData = buildMatchData(articleEl, text, matched);
-    chrome.runtime.sendMessage({
-      type: FBM_MESSAGE_TYPES.KEYWORD_MATCH,
-      payload: matchData,
-    });
+    var matchData = buildMatchData(articleEl, text, matched);
+    try {
+      chrome.runtime.sendMessage({
+        type: FBM_MESSAGE_TYPES.KEYWORD_MATCH,
+        payload: matchData,
+      });
+    } catch (e) {
+      console.warn("[FBMonitor] Failed to notify service worker:", e);
+    }
   }
 
   function extractPostText(articleEl) {
-    for (const selector of FBM_SELECTORS.POST_TEXT_CANDIDATES) {
-      const candidates = articleEl.querySelectorAll(selector);
+    // Strategy 1: specific selectors
+    for (var i = 0; i < FBM_SELECTORS.POST_TEXT_CANDIDATES.length; i++) {
+      var selector = FBM_SELECTORS.POST_TEXT_CANDIDATES[i];
+      var candidates = articleEl.querySelectorAll(selector);
       if (candidates.length > 0) {
-        const texts = Array.from(candidates).map((el) => el.innerText);
-        const combined = texts.join(" ");
+        var texts = [];
+        candidates.forEach(function (el) {
+          var t = el.innerText || el.textContent || "";
+          if (t.trim()) texts.push(t);
+        });
+        var combined = texts.join(" ");
         if (combined.trim().length > 10) return combined;
       }
     }
-    return articleEl.innerText || "";
+
+    // Strategy 2: grab all text from the article
+    return articleEl.innerText || articleEl.textContent || "";
   }
 
   function matchKeywords(text, keywords) {
-    const lowerText = text.toLowerCase();
-    return keywords.filter((kw) => lowerText.includes(kw.toLowerCase()));
+    var lowerText = text.toLowerCase();
+    return keywords.filter(function (kw) {
+      return lowerText.includes(kw.toLowerCase());
+    });
   }
 
   function highlightPost(articleEl, matchedKeywords) {
+    if (articleEl.classList.contains(FBM_SELECTORS.MATCHED_CLASS)) return;
     articleEl.classList.add(FBM_SELECTORS.MATCHED_CLASS);
 
-    const badge = document.createElement("div");
+    var badge = document.createElement("div");
     badge.className = FBM_SELECTORS.BADGE_CLASS;
-    badge.textContent = `FBM: ${matchedKeywords.join(", ")}`;
+    badge.textContent = "FBM: " + matchedKeywords.join(", ");
     articleEl.style.position = "relative";
     articleEl.prepend(badge);
   }
 
   async function injectCopyReplyButton(articleEl, matchedKeywords) {
-    const templates = await FBM_Storage.getReplyTemplates();
-    const firstMatchTemplate = matchedKeywords
-      .map((kw) => templates[kw])
-      .find((t) => t);
+    if (articleEl.querySelector("." + FBM_SELECTORS.COPY_BTN_CLASS)) return;
+
+    var templates;
+    try {
+      templates = await FBM_Storage.getReplyTemplates();
+    } catch (e) {
+      return;
+    }
+
+    var firstMatchTemplate = null;
+    for (var i = 0; i < matchedKeywords.length; i++) {
+      if (templates[matchedKeywords[i]]) {
+        firstMatchTemplate = templates[matchedKeywords[i]];
+        break;
+      }
+    }
 
     if (!firstMatchTemplate) return;
 
-    const btn = document.createElement("button");
+    var btn = document.createElement("button");
     btn.className = FBM_SELECTORS.COPY_BTN_CLASS;
     btn.textContent = "Copy Reply";
     btn.title = "Copy reply template to clipboard";
-    btn.addEventListener("click", async (e) => {
+    btn.addEventListener("click", async function (e) {
       e.preventDefault();
       e.stopPropagation();
       try {
         await navigator.clipboard.writeText(firstMatchTemplate);
         btn.textContent = "Copied!";
-        setTimeout(() => (btn.textContent = "Copy Reply"), 2000);
-      } catch {
+        setTimeout(function () {
+          btn.textContent = "Copy Reply";
+        }, 2000);
+      } catch (err) {
         btn.textContent = "Failed";
-        setTimeout(() => (btn.textContent = "Copy Reply"), 2000);
+        setTimeout(function () {
+          btn.textContent = "Copy Reply";
+        }, 2000);
       }
     });
 
-    const badge = articleEl.querySelector(`.${FBM_SELECTORS.BADGE_CLASS}`);
+    var badge = articleEl.querySelector("." + FBM_SELECTORS.BADGE_CLASS);
     if (badge) {
       badge.after(btn);
     } else {
@@ -150,48 +212,59 @@
   }
 
   function buildMatchData(articleEl, text, matchedKeywords) {
-    let postUrl = window.location.href;
-    for (const selector of FBM_SELECTORS.POST_LINK_SELECTORS) {
-      const link = articleEl.querySelector(selector);
+    var postUrl = window.location.href;
+    for (var i = 0; i < FBM_SELECTORS.POST_LINK_SELECTORS.length; i++) {
+      var link = articleEl.querySelector(FBM_SELECTORS.POST_LINK_SELECTORS[i]);
       if (link) {
         postUrl = link.href;
         break;
       }
     }
 
-    let authorName = "Unknown";
-    for (const selector of FBM_SELECTORS.AUTHOR_SELECTORS) {
-      const el = articleEl.querySelector(selector);
-      if (el && el.innerText.trim()) {
+    var authorName = "Unknown";
+    for (var j = 0; j < FBM_SELECTORS.AUTHOR_SELECTORS.length; j++) {
+      var el = articleEl.querySelector(FBM_SELECTORS.AUTHOR_SELECTORS[j]);
+      if (el && (el.innerText || "").trim()) {
         authorName = el.innerText.trim();
         break;
       }
     }
 
-    const groupName =
-      document.querySelector("h1")?.innerText || "Unknown Group";
+    var h1 = document.querySelector("h1");
+    var groupName = h1 ? h1.innerText : "Unknown Group";
 
     return {
       postText: text.substring(0, FBM_DEFAULTS.MAX_POST_TEXT_LENGTH),
-      matchedKeywords,
-      postUrl,
-      authorName,
-      groupName,
+      matchedKeywords: matchedKeywords,
+      postUrl: postUrl,
+      authorName: authorName,
+      groupName: groupName,
       timestamp: Date.now(),
     };
   }
 
+  // Periodic re-scan — catches posts missed by MutationObserver and handles
+  // the case where keywords were added after initial page load.
+  function startPeriodicScan() {
+    setInterval(function () {
+      if (currentFeed && document.body.contains(currentFeed)) {
+        scanNewPosts(currentFeed);
+      }
+    }, PERIODIC_SCAN_MS);
+  }
+
   // SPA navigation detection — Facebook is a single-page app
   function startNavigationWatcher() {
-    let lastUrl = location.href;
+    var lastUrl = location.href;
 
-    setInterval(() => {
+    setInterval(function () {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
+        console.log("[FBMonitor] Navigation detected:", lastUrl);
         reattachIfNeeded();
       }
-      // Also check if feed was replaced (React reconciliation)
       if (currentFeed && !document.body.contains(currentFeed)) {
+        console.log("[FBMonitor] Feed detached, re-attaching...");
         reattachIfNeeded();
       }
     }, FEED_CHECK_INTERVAL_MS);
@@ -201,7 +274,7 @@
     if (!location.href.includes("/groups/")) return;
     if (feedObserver) feedObserver.disconnect();
 
-    const feed = await waitForFeed();
+    var feed = await waitForFeed();
     if (feed) {
       observeFeed(feed);
       scanExistingPosts(feed);
@@ -209,16 +282,16 @@
   }
 
   // Listen for config changes from popup/options
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener(function (message) {
     if (message.type === FBM_MESSAGE_TYPES.CONFIG_UPDATED) {
+      console.log("[FBMonitor] Config updated, re-scanning...");
       if (currentFeed) {
-        // Re-scan with new keywords (clear processed flags)
-        const articles = currentFeed.querySelectorAll(
-          `[${FBM_SELECTORS.PROCESSED_ATTR}]`,
+        var articles = currentFeed.querySelectorAll(
+          "[" + FBM_SELECTORS.PROCESSED_ATTR + "]",
         );
-        articles.forEach((a) =>
-          a.removeAttribute(FBM_SELECTORS.PROCESSED_ATTR),
-        );
+        articles.forEach(function (a) {
+          a.removeAttribute(FBM_SELECTORS.PROCESSED_ATTR);
+        });
         scanExistingPosts(currentFeed);
       }
     }

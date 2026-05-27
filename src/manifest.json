@@ -3,7 +3,7 @@
   "name": "FBMonitor",
   "version": "0.1.0",
   "description": "Monitor Facebook group posts for keywords. Highlights matches, sends webhook notifications, and provides copy-to-clipboard reply templates.",
-  "permissions": ["storage", "alarms", "notifications"],
+  "permissions": ["storage", "alarms", "notifications", "tabs"],
   "host_permissions": [
     "https://www.facebook.com/*",
     "https://*.webhook.office.com/*",

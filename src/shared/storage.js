@@ -1,7 +1,8 @@
 // FBMonitor storage wrapper — abstracts chrome.storage.sync and chrome.storage.local.
-// Loaded as a content script global (window.FBM_Storage).
+// Uses var so it's accessible from content.js and popup.js.
 
-const FBM_Storage = {
+/* eslint-disable no-var */
+var FBM_Storage = {
   async getKeywords() {
     const result = await chrome.storage.sync.get(FBM_STORAGE_KEYS.KEYWORDS);
     return result[FBM_STORAGE_KEYS.KEYWORDS] || [];
@@ -54,9 +55,10 @@ const FBM_Storage = {
     });
   },
 
-  // Webhook URL stored in local only — never synced to Google
   async getWebhookUrl() {
-    const result = await chrome.storage.local.get(FBM_STORAGE_KEYS.WEBHOOK_URL);
+    const result = await chrome.storage.local.get(
+      FBM_STORAGE_KEYS.WEBHOOK_URL,
+    );
     return result[FBM_STORAGE_KEYS.WEBHOOK_URL] || "";
   },
 
@@ -100,14 +102,15 @@ const FBM_Storage = {
   },
 
   async getSentHashes() {
-    const result = await chrome.storage.local.get(FBM_STORAGE_KEYS.SENT_HASHES);
+    const result = await chrome.storage.local.get(
+      FBM_STORAGE_KEYS.SENT_HASHES,
+    );
     return result[FBM_STORAGE_KEYS.SENT_HASHES] || {};
   },
 
   async addSentHash(hash) {
     const hashes = await this.getSentHashes();
     hashes[hash] = Date.now();
-    // Expire old hashes
     const cutoff = Date.now() - FBM_DEFAULTS.HASH_EXPIRY_MS;
     for (const [k, v] of Object.entries(hashes)) {
       if (v < cutoff) delete hashes[k];
@@ -134,7 +137,3 @@ const FBM_Storage = {
     );
   },
 };
-
-if (typeof window !== "undefined") {
-  window.FBM_Storage = FBM_Storage;
-}
