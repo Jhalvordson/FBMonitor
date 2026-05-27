@@ -12,12 +12,24 @@ document.addEventListener("DOMContentLoaded", async function () {
   var totalCountEl = document.getElementById("total-count");
   var unrepliedCountEl = document.getElementById("unreplied-count");
 
+  var clearAllBtn = document.getElementById("clear-all-btn");
+
   var allMatches = [];
   var repliedSet = {};
   var templates = {};
 
   await loadData();
   render();
+
+  clearAllBtn.addEventListener("click", async function () {
+    if (!confirm("Clear all match history and replied status?")) return;
+    await FBM_Storage.clearMatchHistory();
+    await chrome.storage.local.remove("fbmonitor_replied");
+    await chrome.storage.local.remove(FBM_STORAGE_KEYS.SENT_HASHES);
+    allMatches = [];
+    repliedSet = {};
+    render();
+  });
 
   // Event listeners
   searchInput.addEventListener("input", render);
