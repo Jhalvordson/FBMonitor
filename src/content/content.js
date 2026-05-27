@@ -97,16 +97,22 @@
       return;
     }
 
+    console.log("[FBMonitor] Keywords from storage:", JSON.stringify(keywords));
     if (!keywords.length) return;
 
     var highlightEnabled = await FBM_Storage.getHighlightEnabled();
     var text = extractPostText(articleEl);
+    console.log(
+      "[FBMonitor] Extracted text (" + text.length + " chars):",
+      text.substring(0, 120),
+    );
     if (!text.trim()) return;
 
     var matched = matchKeywords(text, keywords);
+    console.log("[FBMonitor] Match result:", JSON.stringify(matched));
     if (matched.length === 0) return;
 
-    console.log("[FBMonitor] Match found:", matched, "in:", text.substring(0, 80));
+    console.log("[FBMonitor] MATCH FOUND:", matched, "in:", text.substring(0, 80));
 
     if (highlightEnabled) {
       highlightPost(articleEl, matched);
