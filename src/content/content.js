@@ -195,22 +195,8 @@
   }
 
   function buildMatchData(feedItem, text, matchedKeywords) {
-    var postUrl = window.location.href;
-    var links = feedItem.querySelectorAll("a[href]");
-    for (var i = 0; i < links.length; i++) {
-      var href = links[i].href || "";
-      if (href.includes("/posts/") || href.includes("/permalink/") || href.includes("story_fbid")) {
-        postUrl = href;
-        break;
-      }
-    }
-
-    var authorName = "Unknown";
-    var strongEls = feedItem.querySelectorAll("strong");
-    if (strongEls.length > 0) {
-      authorName = strongEls[0].textContent || "Unknown";
-    }
-
+    var postUrl = findPostUrl(feedItem);
+    var authorName = findAuthorName(feedItem);
     var h1 = document.querySelector("h1");
     var groupName = h1 ? h1.textContent : "Unknown Group";
 
@@ -222,6 +208,57 @@
       groupName: groupName,
       timestamp: Date.now(),
     };
+  }
+
+  function findPostUrl(feedItem) {
+    // Facebook post permalinks are in <a> tags with timestamps.
+    // They contain patterns like /groups/ID/posts/ID or /permalink/ID
+    // Look through ALL links in the feed item for a post permalink.
+    var links = feedItem.querySelectorAll("a[href]");
+    var candidates = [];
+
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].href || "";
+      // Direct post URLs
+      if (href.match(/\/groups\/\d+\/posts\/\d+/)) {
+        candidates.push(href);
+      } else if (href.match(/\/groups\/\d+\/permalink\/\d+/)) {
+        candidates.push(href);
+      } else if (href.includes("story_fbid=")) {
+        candidates.push(href);
+      }
+      // Timestamp links often have the post permalink
+      // They're usually short links with just the group/post IDs
+      if (href.match(/\/groups\/[^/]+\/posts\//) || href.match(/\/permalink\//)) {
+        candidates.push(href);
+      }
+    }
+
+    // Prefer the shortest/cleanest URL (most likely the actual permalink)
+    if (candidates.length > 0) {
+      candidates.sort(function (a, b) { return a.length - b.length; });
+      // Clean tracking params
+      var url = candidates[0].split("?")[0];
+      return url;
+    }
+
+    return window.location.href;
+  }
+
+  function findAuthorName(feedItem) {
+    // Try multiple strategies to find the post author
+    var strong = feedItem.querySelector("h3 strong, h4 strong, strong a");
+    if (strong && strong.textContent.trim()) {
+      return strong.textContent.trim();
+    }
+    var strongEls = feedItem.querySelectorAll("strong");
+    for (var i = 0; i < strongEls.length; i++) {
+      var name = strongEls[i].textContent.trim();
+      if (name && name.length > 1 && name.length < 50) {
+        return name;
+      }
+    }
+    return "Unknown";
   }
 
   // Periodic re-scan catches new content loaded by scrolling
