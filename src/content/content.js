@@ -266,34 +266,37 @@
       var href = links[i].href || "";
       if (!href || href === "#" || href === "about:blank") continue;
 
-      // Any link containing /posts/, /permalink/, or story_fbid
+      // Only match actual post permalinks — NOT user profiles, photos, etc.
       if (
-        href.includes("/posts/") ||
-        href.includes("/permalink/") ||
-        href.includes("story_fbid") ||
-        href.includes("multi_permalinks")
+        (href.includes("/posts/") || href.includes("/permalink/")) &&
+        href.includes("/groups/")
       ) {
+        candidates.push(href);
+      } else if (href.includes("story_fbid") || href.includes("multi_permalinks")) {
         candidates.push(href);
       }
     }
 
     if (candidates.length > 0) {
-      // Prefer URLs with /posts/ or /permalink/ (cleaner than story_fbid)
       var best = candidates.find(function (u) {
         return u.includes("/posts/") || u.includes("/permalink/");
       });
-      var url = best || candidates[0];
-      // Strip tracking params but keep the path
-      return url.split("?")[0];
+      return (best || candidates[0]).split("?")[0];
     }
 
-    // Fallback: look for timestamp links — they often have aria-label with
-    // a time value and link to the post
-    var timeLinks = feedItem.querySelectorAll('a[aria-label]');
-    for (var j = 0; j < timeLinks.length; j++) {
-      var tHref = timeLinks[j].href || "";
-      if (tHref && tHref.includes("facebook.com") && tHref !== window.location.href) {
-        return tHref.split("?")[0];
+    // Fallback: look for timestamp links — short text like "1h", "2d", "May 24"
+    // These are post permalinks on Facebook
+    for (var j = 0; j < links.length; j++) {
+      var link = links[j];
+      var href = link.href || "";
+      var text = (link.textContent || "").trim();
+      if (!href || href.includes("/user/") || href.includes("/profile")) continue;
+
+      // Timestamp patterns: "1h", "2d", "3m", "May 24", "Yesterday"
+      if (text.match(/^\d+[hmdw]$/) || text.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s/i) || text === "Yesterday" || text === "Just now") {
+        if (href.includes("facebook.com") && href !== window.location.href) {
+          return href.split("?")[0];
+        }
       }
     }
 
@@ -301,43 +304,28 @@
   }
 
   function findAuthorName(feedItem) {
-    // Facebook author names are typically in <strong> or <a> tags with
-    // specific patterns near the top of each post.
-    // Look for links that point to user profiles (contain facebook.com/USER or /user/)
-    var profileLinks = feedItem.querySelectorAll(
-      'a[href*="facebook.com/"], a[role="link"]',
-    );
-    for (var i = 0; i < profileLinks.length; i++) {
-      var link = profileLinks[i];
-      var href = link.href || "";
-      // Skip non-profile links (groups, posts, photos, hashtags, etc.)
-      if (
-        href.includes("/groups/") ||
-        href.includes("/posts/") ||
-        href.includes("/photo") ||
-        href.includes("/permalink") ||
-        href.includes("story_fbid") ||
-        href.includes("#")
-      )
-        continue;
-
-      var strong = link.querySelector("strong");
-      if (strong) {
-        var name = strong.textContent.trim();
-        if (name.length > 1 && name.length < 60) return name;
-      }
-      var name = link.textContent.trim();
-      if (name.length > 1 && name.length < 60 && !name.includes("\n")) {
-        return name;
-      }
+    // Strategy 1: Look for <strong> tags — Facebook wraps author names in <strong>
+    // The first <strong> in a post is almost always the author name
+    var strongs = feedItem.querySelectorAll("strong");
+    for (var i = 0; i < strongs.length; i++) {
+      var text = strongs[i].textContent.trim();
+      // Skip non-name patterns: single chars, very long text, contains newlines,
+      // looks like a label ("Top contributor", "Admin", etc.)
+      if (text.length < 2 || text.length > 50) continue;
+      if (text.includes("\n")) continue;
+      if (text.match(/^(Top contributor|Admin|Group expert|All-star|Author|Moderator)$/i)) continue;
+      // A name should have at least one space (first + last) or be a single name
+      // Skip if it's clearly not a name (all lowercase, has special chars)
+      if (text.match(/^[a-z]+$/) && text.length < 4) continue;
+      return text;
     }
 
-    // Fallback: first <strong> that looks like a name
-    var strongs = feedItem.querySelectorAll("strong");
-    for (var j = 0; j < strongs.length; j++) {
-      var text = strongs[j].textContent.trim();
-      if (text.length > 1 && text.length < 50 && !text.includes("\n")) {
-        return text;
+    // Strategy 2: Look for h2/h3 tags which sometimes hold author names
+    var headings = feedItem.querySelectorAll("h2, h3");
+    for (var j = 0; j < headings.length; j++) {
+      var hText = headings[j].textContent.trim();
+      if (hText.length > 1 && hText.length < 50 && !hText.includes("\n")) {
+        return hText;
       }
     }
 

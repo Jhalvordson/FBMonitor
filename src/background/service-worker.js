@@ -55,7 +55,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 async function handleKeywordMatch(payload) {
-  const hash = simpleHash(payload.postUrl + payload.matchedKeywords.join(","));
+  // Hash on post text + keywords (not URL, which can be unreliable)
+  const textSnippet = (payload.postText || "").substring(0, 100);
+  const hash = simpleHash(textSnippet + payload.matchedKeywords.join(","));
 
   const sentHashes = await getSentHashes();
   if (
@@ -65,6 +67,8 @@ async function handleKeywordMatch(payload) {
     return;
   }
 
+  // Mark as sent immediately to prevent duplicate history entries
+  await markHashSent(hash);
   await addMatch(payload);
   await updateBadge();
 
