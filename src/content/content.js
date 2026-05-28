@@ -350,8 +350,38 @@
     setInterval(function () {
       if (currentFeed && document.body.contains(currentFeed)) {
         scanFeed(currentFeed);
+        maybeClickNewPosts();
       }
     }, PERIODIC_SCAN_MS);
+  }
+
+  // Auto-click Facebook's "New posts" button when it appears so new posts
+  // get rendered into the feed and picked up by the scanner. Safeguards:
+  // - only when tab is visible (not background tabs)
+  // - 30s minimum between clicks (no spamming)
+  // - 2-6s random reaction delay (varied timing, looks human)
+  // - re-check button still exists before clicking (race condition guard)
+  var lastNewPostsClick = 0;
+  function maybeClickNewPosts() {
+    if (document.visibilityState !== "visible") return;
+    var now = Date.now();
+    if (now - lastNewPostsClick < 30000) return;
+
+    var btns = document.querySelectorAll('div[role="button"]');
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      var text = (btn.textContent || "").trim().toLowerCase();
+      if (text.includes("new post") || text.match(/^\d+\s+new/)) {
+        lastNewPostsClick = now;
+        var delay = 2000 + Math.random() * 4000;
+        setTimeout(function () {
+          if (document.body.contains(btn) && document.visibilityState === "visible") {
+            btn.click();
+          }
+        }, delay);
+        return;
+      }
+    }
   }
 
   // Fallback: scan the whole page when no feed container exists
